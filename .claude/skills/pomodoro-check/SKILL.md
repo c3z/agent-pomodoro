@@ -70,11 +70,15 @@ If yesterday had 0 sessions → flag it.
 During evening close, report today's stats.
 Compare with weekly average.
 
+## Agent summary (recommended — returns pre-formatted text)
+```bash
+cd ~/P/agent-pomodoro && npx convex run sessions:agentSummary '{"userId": "dev-user"}'
+```
+
 ## CLI one-liner for quick check
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:stats '{"userId": "dev-user", "sinceDaysAgo": 7}' 2>/dev/null | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-print(f'Streak: {d[\"currentStreak\"]}d | Focus: {d[\"totalFocusHours\"]}h/7d | Rate: {d[\"completionRate\"]}% | Last: {d[\"hoursSinceLastSession\"]}h ago')
+cd ~/P/agent-pomodoro && npx convex run sessions:stats '{"userId": "dev-user", "sinceDaysAgo": 7}' 2>/dev/null | node -e "
+const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+console.log('Streak: ' + d.currentStreak + 'd | Focus: ' + d.totalFocusHours + 'h/7d | Rate: ' + d.completionRate + '% | Last: ' + d.hoursSinceLastSession + 'h ago');
 "
 ```

@@ -73,3 +73,8 @@
 - **Scope:** PWA manifest, history date grouping, keyboard/completion P1 fixes
 - **Result:** 7.3/10 consolidated (+0.4), **P1 = 0, STOP CONDITION MET**
 - **Fixed:** PWA manifest+icons, history date groups, keyboard ref pattern, completion logic, CLAUDE.md stale refs
+
+### Sprint #4 — Mobile Nav + Agent Summary + Vercel Fix
+- **Branch:** sprint/1 (continued)
+- **Scope:** Responsive nav, agent summary query, loading skeleton, Vercel preset
+- **Fixed:** Mobile nav responsive, agentSummary Convex query, dashboard skeleton, @vercel/react-router preset, pomodoro-check skill updated

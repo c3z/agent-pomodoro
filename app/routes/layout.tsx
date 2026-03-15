@@ -12,21 +12,25 @@ function Nav() {
   return (
     <nav className="border-b border-surface-lighter">
       <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <NavLink to="/" className="text-pomored font-bold font-mono text-lg">
-            🍅 agent-pomodoro
+        <NavLink
+          to="/"
+          className="text-pomored font-bold font-mono text-lg shrink-0"
+        >
+          <span className="hidden sm:inline">🍅 agent-pomodoro</span>
+          <span className="sm:hidden">🍅</span>
+        </NavLink>
+        <div className="flex gap-1">
+          <NavLink to="/" end className={linkClass}>
+            <span className="hidden sm:inline">Dashboard</span>
+            <span className="sm:hidden">Home</span>
           </NavLink>
-          <div className="flex gap-1">
-            <NavLink to="/" end className={linkClass}>
-              Dashboard
-            </NavLink>
-            <NavLink to="/timer" className={linkClass}>
-              Timer
-            </NavLink>
-            <NavLink to="/history" className={linkClass}>
-              History
-            </NavLink>
-          </div>
+          <NavLink to="/timer" className={linkClass}>
+            Timer
+          </NavLink>
+          <NavLink to="/history" className={linkClass}>
+            <span className="hidden sm:inline">History</span>
+            <span className="sm:hidden">Log</span>
+          </NavLink>
         </div>
         <div id="clerk-user-button" />
       </div>

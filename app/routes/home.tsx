@@ -41,7 +41,21 @@ export default function Home() {
         </p>
       </div>
 
-      <Stats data={statsData ?? EMPTY_STATS} />
+      {statsData === undefined ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="bg-surface-light rounded-xl p-4 animate-pulse"
+            >
+              <div className="h-3 bg-surface-lighter rounded w-16 mx-auto mb-2" />
+              <div className="h-7 bg-surface-lighter rounded w-12 mx-auto" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Stats data={statsData} />
+      )}
 
       <div className="text-center">
         <NavLink
