@@ -18,7 +18,7 @@ Open `http://localhost:5173`. Sign in with Clerk, start a pomodoro.
 ### 1. Install the CLI
 
 ```bash
-npm install -g apom
+npm install -g agent-pomodoro
 ```
 
 ### 2. Get an API key

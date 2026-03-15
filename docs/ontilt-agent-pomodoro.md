@@ -92,7 +92,7 @@ The slot machine doesn't care about your focus. The agent does. That's the diffe
 ## Getting started
 
 ```bash
-npm install -g apom
+npm install -g agent-pomodoro
 apom config set-key <your-api-key>
 apom status
 ```
