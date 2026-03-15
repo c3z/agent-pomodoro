@@ -7,6 +7,7 @@ interface Session {
   completed: boolean;
   interrupted: boolean;
   notes?: string;
+  tags?: string[];
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -109,8 +110,20 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
                         interrupted
                       </span>
                     )}
+                    {s.tags && s.tags.length > 0 && (
+                      <div className="flex gap-1 ml-auto">
+                        {s.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-surface-lighter text-gray-400"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {s.notes && (
-                      <span className="text-gray-500 text-xs ml-auto truncate max-w-48">
+                      <span className={`text-gray-500 text-xs ${!s.tags?.length ? "ml-auto" : ""} truncate max-w-48`}>
                         {s.notes}
                       </span>
                     )}

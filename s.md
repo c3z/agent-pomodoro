@@ -1,17 +1,17 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #3
-## Consolidated Score: 7.3/10
+## Current Sprint: #5
+## Consolidated Score: 7.6/10
 ## Stop Condition: End-user >= 7.0/10, P1 = 0 — MET
 
 ## Scores
 
-| Reviewer | #1 | #2 | #3 | Delta |
-|----------|-----|-----|-----|-------|
-| End-user (PRIMARY) | 5.6 | 6.6 | **7.3** | +0.7 |
-| Developer Experience | 6.4 | 7.4 | 7.4 | — |
-| Performance | 5.4 | 6.6 | 7.2 | +0.6 |
-| **Consolidated** | **5.8** | **6.9** | **7.3** | **+0.4** |
+| Reviewer | #1 | #2 | #3 | #5 | Delta |
+|----------|-----|-----|-----|-----|-------|
+| End-user (PRIMARY) | 5.6 | 6.6 | 7.3 | **7.7** | +0.4 |
+| Developer Experience | 6.4 | 7.4 | 7.4 | **7.8** | +0.4 |
+| Performance | 5.4 | 6.6 | 7.2 | **7.2** | — |
+| **Consolidated** | **5.8** | **6.9** | **7.3** | **7.6** | **+0.3** |
 
 ## Backlog
 
@@ -20,35 +20,43 @@
 - [x] ~~Background tab throttling~~ — FIXED Sprint 2 (visibilitychange)
 - [x] ~~Audio notification broken~~ — FIXED Sprint 2 (Web Audio API)
 - [x] ~~Browser Notification API~~ — FIXED Sprint 2
-- [ ] No PWA manifest — cannot install on mobile
+- [x] ~~No PWA manifest~~ — FIXED Sprint 3
 - [x] ~~userId mismatch~~ — FIXED Sprint 2
 - [x] ~~Offline mutations fail silently~~ — FIXED Sprint 2 (try/catch)
 - [x] ~~No CI pipeline~~ — FIXED Sprint 2 (GitHub Actions)
-- [ ] Keyboard effect missing dependency array (re-registers every render)
-- [ ] Completion detection logic has dead code path + race condition
-- [ ] CI does not test with Convex env vars (tests degraded mode only)
+- [x] ~~Keyboard effect missing dependency array~~ — FIXED Sprint 3
+- [x] ~~Completion detection logic dead code path~~ — FIXED Sprint 3
+- [x] ~~Convex prod not deployed~~ — FIXED Sprint 5
 
 ### P2 (SHOULD)
 - [x] ~~Tab title countdown~~ — FIXED Sprint 2
 - [x] ~~Keyboard shortcuts~~ — FIXED Sprint 2
-- [ ] History flat list — needs date grouping
-- [x] ~~Unstable callback refs~~ — FIXED Sprint 2 (ref pattern)
+- [x] ~~History flat list~~ — FIXED Sprint 3 (date grouping)
+- [x] ~~Unstable callback refs~~ — FIXED Sprint 2
 - [x] ~~handleComplete deps~~ — FIXED Sprint 2
-- [ ] No service worker / PWA
-- [ ] Nav breaks on narrow mobile screens
-- [x] ~~Timer ring not responsive~~ — FIXED Sprint 2 (w-48 sm:w-64)
-- [x] ~~Duplicate Convex client~~ — FIXED Sprint 2 (removed lib/convex.ts)
-- [ ] CLAUDE.md architecture section stale (references removed files)
-- [ ] Session history shows only time, no date
-- [ ] Clerk auth integration in layout (SignInButton, UserButton)
+- [x] ~~No service worker / PWA~~ — FIXED Sprint 5 (sw.js)
+- [x] ~~Timer ring not responsive~~ — FIXED Sprint 2
+- [x] ~~Duplicate Convex client~~ — FIXED Sprint 2
+- [x] ~~Notes/tags input from UI~~ — FIXED Sprint 5 (completion modal)
+- [x] ~~Tags not displayed in SessionList~~ — FIXED Sprint 5
+- [x] ~~Completion handler duplicated code~~ — FIXED Sprint 5
+- [x] ~~Nested setState anti-pattern~~ — FIXED Sprint 5
+- [x] ~~Vercel preview env vars missing~~ — FIXED Sprint 5
+- [ ] Vercel Deployment Protection blocks staging E2E tests
+- [ ] CI does not test with Convex env vars (degraded mode only)
+- [ ] pomodoro-check skill hardcoded to "dev-user"
+- [ ] Nav breaks on narrow mobile (<360px)
+- [ ] AudioContext leak (new context per completion, never closed)
+- [ ] Font loading strategy (external Google Fonts, no preload)
 
 ### P3 (NICE)
 - [ ] Timer state lost on page navigation
 - [ ] Stats period hardcoded to 7d
-- [ ] Font loading strategy unverified
-- [ ] Notes/tags input from UI
 - [ ] Dark/light theme toggle
 - [ ] Custom timer durations
+- [ ] Mutation retry queue (localStorage + online event)
+- [ ] Lazy-load Clerk (~80kB savings)
+- [ ] Agent summary missing tag breakdown
 
 ## Deployment
 - **Staging:** `npm run build && npx vercel --yes`
@@ -78,3 +86,9 @@
 - **Branch:** sprint/1 (continued)
 - **Scope:** Responsive nav, agent summary query, loading skeleton, Vercel preset
 - **Fixed:** Mobile nav responsive, agentSummary Convex query, dashboard skeleton, @vercel/react-router preset, pomodoro-check skill updated
+
+### Sprint #5 — Notes/Tags UI + Service Worker + CI Typecheck
+- **Branch:** sprint/5
+- **Scope:** Completion modal with notes/tags, offline service worker, CI typecheck, Convex prod fix
+- **Result:** 7.6/10 consolidated (+0.3), P1 = 0
+- **Fixed:** Notes/tags completion modal, service worker (offline assets), CI typecheck step, Convex prod deployment, tags in SessionList, completion handler cleanup, Vercel env vars for preview

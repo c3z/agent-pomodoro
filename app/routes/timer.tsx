@@ -28,10 +28,15 @@ export default function TimerPage() {
             console.warn("[pomodoro] Failed to save session start:", e);
           }
         }}
-        onSessionComplete={async () => {
+        onSessionComplete={async (_type, notes, tags) => {
           if (sessionIdRef.current) {
             try {
-              await completeSession({ sessionId: sessionIdRef.current, userId: userId! });
+              await completeSession({
+                sessionId: sessionIdRef.current,
+                userId: userId!,
+                notes,
+                tags,
+              });
             } catch (e) {
               console.warn("[pomodoro] Failed to save session complete:", e);
             }

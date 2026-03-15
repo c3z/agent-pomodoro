@@ -69,7 +69,7 @@ function sendNotification(mode: TimerMode) {
 
 interface TimerProps {
   onSessionStart?: (type: TimerMode, durationMinutes: number) => void;
-  onSessionComplete?: (type: TimerMode) => void;
+  onSessionComplete?: (type: TimerMode, notes?: string, tags?: string[]) => void;
   onSessionInterrupt?: () => void;
 }
 
@@ -83,6 +83,9 @@ export function Timer({
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [completedPomodoros, setCompletedPomodoros] = useState(0);
+  const [showCompletion, setShowCompletion] = useState(false);
+  const [completionNotes, setCompletionNotes] = useState("");
+  const [completionTags, setCompletionTags] = useState<string[]>([]);
 
   // Wall-clock anchor: when the timer should end
   const endTimeRef = useRef<number>(0);
@@ -164,24 +167,51 @@ export function Timer({
 
     const currentMode = modeRef.current;
     sendNotification(currentMode);
-    onCompleteRef.current?.(currentMode);
 
     if (currentMode === "work") {
-      setCompletedPomodoros((prev) => {
-        const newCount = prev + 1;
-        const nextMode =
-          newCount % DEFAULT_CONFIG.longBreakInterval === 0
-            ? "longBreak"
-            : "break";
-        setMode(nextMode);
-        setSecondsLeft(DEFAULT_CONFIG[nextMode] * 60);
-        return newCount;
-      });
+      // Show completion form for work sessions
+      setShowCompletion(true);
     } else {
+      onCompleteRef.current?.(currentMode);
       setMode("work");
       setSecondsLeft(DEFAULT_CONFIG.work * 60);
     }
   }, [secondsLeft, isRunning]);
+
+  const advanceAfterCompletion = (notes?: string, tags?: string[]) => {
+    onCompleteRef.current?.("work", notes, tags);
+    setShowCompletion(false);
+    setCompletionNotes("");
+    setCompletionTags([]);
+
+    const newCount = completedPomodoros + 1;
+    setCompletedPomodoros(newCount);
+    const nextMode =
+      newCount % DEFAULT_CONFIG.longBreakInterval === 0
+        ? "longBreak"
+        : "break";
+    setMode(nextMode);
+    setSecondsLeft(DEFAULT_CONFIG[nextMode] * 60);
+  };
+
+  const handleCompletionSubmit = () => {
+    advanceAfterCompletion(
+      completionNotes.trim() || undefined,
+      completionTags.length > 0 ? completionTags : undefined
+    );
+  };
+
+  const handleCompletionSkip = () => {
+    advanceAfterCompletion();
+  };
+
+  const toggleTag = (tag: string) => {
+    setCompletionTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const QUICK_TAGS = ["deep-work", "meetings", "code", "writing", "learning", "admin"];
 
   // Visibilitychange: recalculate when tab regains focus
   useEffect(() => {
@@ -202,9 +232,9 @@ export function Timer({
   // Keyboard shortcuts — use refs to avoid re-registering on every render
   const isRunningRef = useRef(isRunning);
   isRunningRef.current = isRunning;
-  const startRef = useRef<() => void>();
-  const pauseRef = useRef<() => void>();
-  const stopRef = useRef<() => void>();
+  const startRef = useRef<(() => void) | undefined>(undefined);
+  const pauseRef = useRef<(() => void) | undefined>(undefined);
+  const stopRef = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -401,6 +431,74 @@ export function Timer({
           {completedPomodoros} done
         </span>
       </div>
+
+      {/* Completion Form */}
+      {showCompletion && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") handleCompletionSkip();
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleCompletionSubmit();
+          }}
+        >
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-lg font-mono font-bold text-breakgreen text-center">
+              Session complete!
+            </h3>
+
+            <div>
+              <label className="text-gray-400 text-xs font-mono block mb-1">
+                What did you work on?
+              </label>
+              <textarea
+                value={completionNotes}
+                onChange={(e) => setCompletionNotes(e.target.value)}
+                placeholder="Optional notes..."
+                className="w-full bg-surface-light rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-gray-600 border border-surface-lighter focus:border-pomored focus:outline-none resize-none"
+                rows={2}
+                maxLength={500}
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="text-gray-400 text-xs font-mono block mb-2">
+                Tags
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {QUICK_TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className={`px-3 py-1 rounded-full text-xs font-mono transition-colors ${
+                      completionTags.includes(tag)
+                        ? "bg-pomored text-white"
+                        : "bg-surface-lighter text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleCompletionSkip}
+                className="flex-1 px-4 py-2 bg-surface-lighter text-gray-400 rounded-lg font-mono text-sm hover:text-white transition-colors"
+              >
+                Skip <span className="text-gray-600 text-[10px]">Esc</span>
+              </button>
+              <button
+                onClick={handleCompletionSubmit}
+                className="flex-1 px-4 py-2 bg-pomored hover:bg-pomored-dark text-white rounded-lg font-mono text-sm font-bold transition-colors"
+              >
+                Save <span className="text-pomored-light text-[10px]">⌘↵</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

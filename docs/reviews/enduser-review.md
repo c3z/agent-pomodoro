@@ -1,201 +1,247 @@
-# End-User Review: Agent Pomodoro (Sprint #3)
+# End-User Review: Agent Pomodoro (Sprint #5)
 
 **Reviewer:** End-user perspective (daily Pomodoro user)
 **Date:** 2026-03-15
-**Previous Score:** 6.6/10 (Sprint #2)
+**Previous Scores:** Sprint #1: 5.6, Sprint #2: 6.6, Sprint #3: 7.3, Sprint #4: not scored
 **Scope:** UI/UX, daily usability, mobile readiness, agent queryability
 
 ---
 
-## Sprint #3 Changes Evaluated
+## Sprint #5 Changes Evaluated
 
-- PWA manifest + icons (manifest.json, icon-192.png, icon-512.png, icon.svg)
-- theme-color meta tag (`#0f172a`)
-- History now grouped by date with "Today"/"Yesterday"/date labels and pomodoro counts
-- Keyboard shortcuts stabilized (ref-based, no re-registration on every render)
-- Completion detection logic cleaned up (removed dead code path)
-- CLAUDE.md updated (removed stale reference to deleted file)
+1. **Notes/tags UI on timer completion** -- modal form with textarea + quick tag pill buttons after a work session completes. Skip or Save. Tags: deep-work, meetings, code, writing, learning, admin.
+2. **Service worker for offline asset caching** -- `public/sw.js` registered in `root.tsx`. Network-first for navigation, cache-first for hashed assets. Cleans old caches on activate.
+3. **CI typecheck added** -- `npm run typecheck` step in GitHub Actions workflow before build/test.
 
 ---
 
-## Subcategory Scores
+## Overall Score: 7.7 / 10
 
-| # | Category | Sprint #1 | Sprint #2 | Sprint #3 | Delta | Notes |
-|---|----------|-----------|-----------|-----------|-------|-------|
-| 1 | First Impression | 6 | 7 | 7 | 0 | PWA icon/manifest is foundational but invisible to first-load experience. No onboarding or loading skeleton added. |
-| 2 | Timer UX | 5 | 8 | 8.5 | +0.5 | Keyboard shortcut stabilization and completion logic cleanup reduce fragility. No new UX features. |
-| 3 | Data Visibility | 6 | 6 | 7 | +1 | Date grouping with "Today"/"Yesterday" labels and per-day pomodoro counts directly addresses previous P2. History is now scannable. |
-| 4 | Mobile Usability | 4 | 5 | 7 | +2 | PWA manifest kills the last P1. App is installable, has proper icons and theme-color. Nav still not mobile-optimized. |
-| 5 | Agent Integration | 7 | 7 | 7 | 0 | No changes. Foundations remain solid but no dedicated agent summary query. |
+| # | Category | Sprint #1 | Sprint #2 | Sprint #3 | Sprint #5 | Delta |
+|---|----------|-----------|-----------|-----------|-----------|-------|
+| 1 | First Impression | 6 | 7 | 7 | 7.5 | +0.5 |
+| 2 | Timer UX | 5 | 8 | 8.5 | 9 | +0.5 |
+| 3 | Data Visibility | 6 | 6 | 7 | 7.5 | +0.5 |
+| 4 | Mobile Usability | 4 | 5 | 7 | 7 | 0 |
+| 5 | Agent Integration | 7 | 7 | 7 | 7.5 | +0.5 |
 
-**Weighted Average: 7.3 / 10** (weights: Timer UX 30%, First Impression 20%, Data Visibility 20%, Mobile 15%, Agent 15%)
-
-Calculation: (8.5 * 0.30) + (7 * 0.20) + (7 * 0.20) + (7 * 0.15) + (7 * 0.15) = 2.55 + 1.40 + 1.40 + 1.05 + 1.05 = 7.45, rounded to 7.3 after considering subcategory granularity below.
+**Average: (7.5 + 9 + 7.5 + 7 + 7.5) / 5 = 7.7**
 
 ---
 
 ## Detailed Assessment
 
-### 1. First Impression (7/10)
+### 1. First Impression (7.5/10)
 
-Score holds from Sprint #2. The Sprint #3 changes (PWA manifest, icons, theme-color) are infrastructure improvements that matter for mobile installation and browser chrome consistency, but they do not change the first-load experience for someone opening the app in a browser tab.
+The dashboard now has a loading skeleton (`home.tsx` lines 44-56) with four pulsing placeholder cards that match the exact grid layout of the real stats. This eliminates the empty-flash that previously made the first load feel rough. The skeleton-to-data transition is seamless because the skeleton cards use the same `bg-surface-light rounded-xl p-4` styling as real `StatCard` components.
 
-The app still loads with empty stat cards (all zeros) that snap to real data once Convex responds. No skeleton, no shimmer, no progressive disclosure. This is not a P1 -- the data appears quickly enough -- but it makes the app feel slightly raw.
+The tagline "Focus tracking for humans supervised by AI agents" is distinctive and memorable. The single CTA ("Start Pomodoro") is prominent and correctly styled. The signed-out state (`AuthGate.tsx`) is clean -- title, tagline, one button. No confusion about what this app does.
 
-The theme-color meta tag (`#0f172a` -- the slate-900 surface color) is correctly set. On mobile Safari and Android Chrome, the browser chrome will match the dark background, which is a small but real polish improvement.
+**What moved the needle:** Loading skeleton. Small change, real polish.
 
-**Still missing:**
-- Loading skeleton for stat cards on Dashboard.
-- No first-use guidance or empty state that explains the workflow.
-- No motivational elements (streak celebration, daily goal target).
+**Still missing for 8.0+:**
+- No first-use empty state guidance. A new user sees "No sessions yet. Start your first pomodoro!" which is adequate but uninspiring. A quick onboarding hint ("25 minutes of deep work, then a 5 minute break") would set expectations.
+- No streak celebration or daily goal indicator on the dashboard. The stats show a streak number, but there is no visual reward for maintaining it -- no animation, no color escalation, no "fire" indicator.
+- The `EMPTY_STATS` constant in `home.tsx` means a brand-new user sees "0d streak, 0h focus, 0% completion, --" which is technically correct but emotionally dead.
 
-### 2. Timer UX (8.5/10)
+### 2. Timer UX (9/10)
 
-Two improvements in Sprint #3 address technical debt flagged in the Sprint #2 review:
+This is the headline Sprint #5 improvement. The notes/tags completion modal transforms the timer from a bare countdown into a journaling-aware focus tool.
 
-**Keyboard shortcut stabilization.** The `useEffect` for keyboard handling now uses refs (`isRunningRef`, `startRef`, `pauseRef`, `stopRef`) with an empty dependency array `[]`. The event listener is registered once on mount and never re-registered. The refs are updated on every render (`startRef.current = start` at line 276). This is the correct pattern -- stable listener, fresh callbacks via refs. Sprint #2 P3 #18 is resolved.
+**Completion modal (`Timer.tsx` lines 449-508):**
 
-**Completion detection cleanup.** The `completedRef` is armed in `start()` (line 244) and consumed in the completion `useEffect` (line 162). The dead code comment about "handleComplete logic inline" has been cleaned up. The two-effect architecture (wall-clock tick sets state, separate effect detects completion) remains, but with the guard properly centralized. Sprint #2 P3 #19 is partially resolved -- the pattern is cleaner though the fundamental two-effect design is still fragile.
+When a work session ends, a dark overlay (`bg-black/60`) fades in with a centered card containing:
+- A "Session complete!" header in breakgreen -- positive reinforcement, correct color choice.
+- A textarea asking "What did you work on?" with 500-char limit, placeholder "Optional notes...", and autofocus. The autofocus is critical -- the user's cursor is already in the field when the modal appears, so typing is immediate.
+- Six quick tag pill buttons: `deep-work`, `meetings`, `code`, `writing`, `learning`, `admin`. Tags toggle on/off with pomored highlight when active. The pill layout wraps naturally on narrow screens.
+- Skip and Save buttons side by side. Skip submits the session without notes/tags. Save submits with them. Both transition to break mode afterward.
 
-**No regression.** Wall-clock timing, audio chime, browser notifications, tab title, pause/resume label -- all still working correctly from the code structure.
+**Why this scores 9:**
+- The flow is non-blocking. Skip is always available. No friction for users who just want the timer.
+- The flow is rewarding for users who do journal. Typing a quick note + tapping a tag takes under 5 seconds. Over weeks, this builds a queryable log of what you actually worked on.
+- Tags are pre-defined (no free-text tag entry), which keeps the data clean and agent-queryable. The six chosen tags cover c3z's actual work modes well.
+- The textarea input correctly excludes keyboard shortcuts (`Space`/`Escape`) via the `instanceof HTMLTextAreaElement` guard in the keyboard handler (line 256). You can type spaces in notes without triggering pause.
+- Break sessions still auto-transition without the modal, which is correct -- you don't need to journal breaks.
 
-**Remaining issues with Timer UX:**
-- Timer state still lost on navigation (architectural, P3).
-- No visual urgency in final seconds (animation, color shift, or pulsing).
-- `sendNotification` uses `/favicon.ico` as icon (line 67) but the PWA now ships `/icon-192.png`. Notification icon should use the higher-quality PWA icon.
+**The completion sound + notification + modal sequence is:**
+1. Timer hits 0 -> `playCompletionSound()` fires two-tone chime
+2. `completedRef` detection effect fires -> `sendNotification()` for browser notification
+3. If work session -> `setShowCompletion(true)` shows modal
+4. User clicks Save/Skip -> `onSessionComplete` fires with notes/tags -> Convex persists -> mode transitions to break
 
-### 3. Data Visibility (7/10)
+This is a well-orchestrated sequence. Sound provides immediate feedback even if the tab is in the background. The notification brings the user back. The modal captures their intent while the work is fresh.
 
-This is the category that moved the most. The `SessionList` component now groups sessions by date with clear headers.
+**Remaining issues:**
+- Timer state is still lost on navigation (P3, architectural). If you navigate to Dashboard mid-timer, the session is gone.
+- No visual urgency in the final 30 seconds (no pulse, no color shift). The ring fills smoothly but the countdown ending feels undramatic.
+- The `completionNotes` state resets when the modal closes, but if the user accidentally closes the modal (not possible currently since there is no backdrop-click-to-dismiss, but future risk), notes would be lost.
+- The modal has no Enter key shortcut to submit. User must click Save or use Tab+Enter.
 
-**Date grouping implementation (`SessionList.tsx`):**
-- `groupByDate()` creates a `Map<string, Session[]>` keyed by `YYYY-M-D` string.
-- `formatDateLabel()` returns "Today", "Yesterday", or formatted date (`"Mon, Mar 14"`).
-- Each day group shows a header row with the label and a pomodoro count (completed work sessions only).
-- Sessions within a group still show time + duration + status.
+### 3. Data Visibility (7.5/10)
 
-This directly solves Sprint #2 P2 #6 (flat list) and P2 #11 (no date context). A user scrolling through 50 sessions can now orient themselves instantly. The per-day pomodoro count is a nice touch that adds accountability without clutter.
+The notes/tags data now has both an input path (completion modal) and a display path (SessionList notes truncated at `max-w-48`). This completes the full write-read cycle that was half-built since Sprint #2.
 
-**What works well:**
-- "Today" / "Yesterday" labels are contextually useful and update correctly.
-- Interrupted sessions visually recede (lower opacity, lighter background) so completed sessions dominate.
-- Pomodoro count per day only counts completed work sessions, which is the right metric.
+**Notes display in SessionList (`SessionList.tsx` line 113):**
+Notes appear as truncated gray text at the far right of each session row. The `truncate max-w-48` ensures long notes don't blow out the layout. This is adequate for scanning but not for detailed review.
 
-**Still missing:**
-- No date filtering or pagination controls. With `limit: 100` in the query, the history page works for a few weeks of use but will eventually need "load more" or date range selection.
-- Notes and tags still cannot be added from the UI. The `complete` mutation accepts `notes` and `tags`, `SessionList` renders notes when present, but no input component exists anywhere. This is a feature gap: the backend is ready, the display is ready, but the input is missing.
-- Stats are still 7-day only with no period selector.
+**Tags are NOT displayed in SessionList.** The `Session` interface in `SessionList.tsx` does not include a `tags` field (line 1-10), and no tag rendering exists in the component. Tags are saved to Convex but invisible in history. This is a gap -- you can add tags but can't see them afterward.
+
+**Stats remain 7-day fixed.** The `stats` query accepts `sinceDaysAgo` but the frontend hardcodes 7 days with no period selector. For a user who has been running the app for a month, the 7-day window is narrow. A "7d / 30d / all" toggle would add significant value.
+
+**What moved the needle:** Notes are visible in session rows. The write-read loop for notes is closed.
+
+**Still missing for 8.0+:**
+- Tags not displayed in SessionList (P2, see findings below).
+- No way to filter history by tag. The whole point of tagging is to slice data later.
+- No expanded view for a session's notes (only truncated inline preview).
+- Stats period selector (7d / 30d / all).
 
 ### 4. Mobile Usability (7/10)
 
-The PWA manifest resolves the Sprint #2 P1. This is the single most impactful Sprint #3 change.
+No mobile-specific changes in Sprint #5. The service worker adds offline asset caching, which is relevant to mobile use (commute, airplane mode), but the core mobile UX issues from Sprint #3 remain.
 
-**PWA manifest (`manifest.json`):**
-- `display: standalone` -- opens without browser chrome when installed.
-- `background_color: #0f172a` -- matches the app surface color for splash screen.
-- `theme_color: #e74c3c` -- pomored, gives the app identity in task switcher.
-- Icons at 192px and 512px cover Android and iOS requirements.
-- `start_url: /` -- correct for the dashboard entry point.
+**Service worker (`sw.js`):**
+- Correctly scoped: only intercepts same-origin GET requests, skips Convex calls.
+- Network-first for navigation means the app always gets fresh HTML when online.
+- Cache-first for `/assets/*` means hashed JS/CSS bundles load instantly from cache on repeat visits.
+- The `install` event pre-caches `/`, `/timer`, `/history` routes.
+- `skipWaiting()` + `clients.claim()` ensures immediate activation.
+- Old caches are cleaned on activate.
 
-**Root document (`root.tsx`):**
-- Manifest linked via `<link rel="manifest">`.
-- `<meta name="theme-color" content="#0f172a">` set in the head.
-- `<link rel="apple-touch-icon" href="/icon-192.png">` for iOS home screen.
-- SVG favicon for modern browsers.
+This is a solid, conservative service worker. It won't cause stale-content issues (network-first for navigation) but provides meaningful offline resilience for static assets. For a timer app, the key question is: can the timer page load and function offline? The answer is partially yes -- the page will load from cache, but Convex mutations (session start/complete) will fail. The `try/catch` wrappers in `timer.tsx` prevent crashes, so the timer itself works offline, but data is silently lost.
 
-This is solid PWA baseline. The app can now be installed on Android via Chrome "Add to home screen" and on iOS via Safari "Add to Home Screen."
+**Nav on mobile:** Still a horizontal flex row. Sprint #4 added responsive labels (full text on desktop, abbreviated on mobile -- "Dashboard"/"Home", "History"/"Log"). The logo collapses to just the tomato emoji on mobile. This is adequate for phones 375px+ but remains tight. No bottom nav bar, no hamburger menu.
 
-**Still missing:**
-- **No service worker.** The manifest enables installability but not offline capability. For a timer app, offline support would be valuable (timer runs locally, sessions sync when back online). Not a P1 -- the app requires authentication anyway -- but a meaningful gap for the "use between meetings" scenario.
-- **Nav still not mobile-optimized.** Logo + 3 nav links + Clerk button in a horizontal flex row. On a 320px viewport this crowds. No hamburger menu, no bottom tab bar, no responsive breakpoint. On 375px (iPhone SE through iPhone 15) it fits but is tight.
-- **No touch gestures.** Swipe between modes, haptic feedback on timer completion -- none of this exists. Buttons are adequately sized for touch (py-3 is ~48px tap target).
+**Completion modal on mobile:** The `p-4` padding on the overlay and `max-w-md` on the card should work on phone screens. The textarea and tag pills will stack naturally. The Skip/Save buttons are `flex-1` so they split the width evenly. This should be usable on mobile, though I cannot verify without a real device test.
 
-### 5. Agent Integration (7/10)
+**Still missing for 8.0+:**
+- Offline session persistence (queue mutations, sync when back online).
+- Bottom nav bar or hamburger for true mobile-first navigation.
+- Haptic feedback on timer completion (Vibration API).
 
-No changes in Sprint #3. The assessment from Sprint #2 holds:
+### 5. Agent Integration (7.5/10)
 
-- `stats` query provides streak, completion rate, hours since last session.
-- `todayByUser` answers "did c3z work today?"
-- `hoursSinceLastSession` enables the scolding use case.
-- Indexes on `pomodoroSessions` support efficient agent queries.
+The `agentSummary` query (`sessions.ts` lines 173-246) was added in Sprint #4 and remains the primary agent interface. It returns a pre-formatted multi-line string:
 
-Still missing:
-- No `agentSummary` query returning a pre-formatted text string for easy agent consumption.
-- No webhook or push notification to proactively alert the agent when c3z goes silent.
-- No "goal" or "target" field that the agent could reference when deciding whether to scold.
+```
+Today: 3 pomodoros completed
+Week: 12/15 sessions (80% completion), 5h focus
+Streak: 3 days
+Last session: 2.5h ago
+```
+
+This is exactly what the Sprint #3 review requested. An agent can call one query and get a human-readable summary without data wrangling.
+
+**Sprint #5 impact on agent integration:** Notes and tags are now stored with sessions. The `agentSummary` query does NOT include notes or tags in its output. This is a missed opportunity -- an agent could use tag data to understand what kind of work c3z did ("mostly meetings today" vs "deep code session") and tailor its response. The raw data is in Convex, so the agent could query `listByUser` and parse tags, but the summary endpoint doesn't surface it.
+
+**Still missing for 8.0+:**
+- `agentSummary` should include today's tag breakdown (e.g., "Tags today: 2x code, 1x meetings").
+- No webhook or proactive notification when c3z goes silent for N hours.
+- No daily goal field that the agent could reference ("c3z set a goal of 6 pomodoros today, completed 3").
 
 ---
 
-## Issue Summary
+## Findings
 
 ### P1 (Must fix)
 
-| # | Issue | Component | Status |
-|---|-------|-----------|--------|
-| 1 | ~~Audio notification broken~~ | `Timer.tsx` | FIXED Sprint #2 |
-| 2 | ~~No browser notification~~ | `Timer.tsx` | FIXED Sprint #2 |
-| 3 | ~~No PWA manifest~~ | Project root | **FIXED Sprint #3** |
-
 **Active P1 count: 0**
+
+No new P1s introduced. The app is fully functional for its core use case.
 
 ### P2 (Should fix)
 
 | # | Issue | Component | Status |
 |---|-------|-----------|--------|
-| 4 | ~~No tab title countdown~~ | `Timer.tsx` | FIXED Sprint #2 |
-| 5 | ~~No keyboard shortcuts~~ | `Timer.tsx` | FIXED Sprint #2 |
-| 6 | ~~History flat list, no date grouping~~ | `SessionList.tsx` | **FIXED Sprint #3** |
-| 7 | Notes/tags cannot be added from UI despite full backend support | `timer.tsx`, `Timer.tsx` | OPEN |
-| 8 | Nav breaks on narrow mobile screens (< 360px) | `layout.tsx` | OPEN |
-| 9 | ~~Timer ring not responsive~~ | `Timer.tsx` | FIXED Sprint #2 |
-| 10 | No agent-friendly summary query returning formatted text | `sessions.ts` | OPEN |
-| 11 | ~~Session history shows only time, no date~~ | `SessionList.tsx` | **FIXED Sprint #3** (by date grouping) |
-| 20 | Notification icon uses `/favicon.ico` instead of PWA icon `/icon-192.png` | `Timer.tsx:67` | NEW |
-| 21 | No "load more" or pagination in history (hardcoded limit: 100) | `history.tsx` | NEW |
+| 7 | ~~Notes/tags cannot be added from UI~~ | `Timer.tsx` | **FIXED Sprint #5** |
+| 8 | Nav breaks on narrow mobile screens (< 360px) | `layout.tsx` | OPEN (mitigated in Sprint #4 with responsive labels) |
+| 10 | ~~No agent-friendly summary query~~ | `sessions.ts` | **FIXED Sprint #4** (`agentSummary`) |
+| 20 | Notification icon uses `/favicon.ico` instead of PWA icon `/icon-192.png` | `Timer.tsx:67` | OPEN |
+| 21 | No "load more" or pagination in history (hardcoded limit: 100) | `history.tsx` | OPEN |
+| 24 | **Tags not displayed in SessionList** -- tags are saved to Convex on completion but the `Session` interface and render logic in `SessionList.tsx` omit them. User cannot see what tags they assigned. | `SessionList.tsx` | **NEW** |
+| 25 | **No Enter key shortcut to submit completion modal** -- user must click Save or Tab+Enter. In a keyboard-driven workflow (Space to start, Esc to reset), the completion form breaks the keyboard flow. | `Timer.tsx` | **NEW** |
 
 ### P3 (Nice to have)
 
 | # | Issue | Component | Status |
 |---|-------|-----------|--------|
 | 12 | Timer state lost on page navigation | `Timer.tsx` (architecture) | OPEN |
-| 13 | ~~Resume button label incorrect~~ | `Timer.tsx` | FIXED Sprint #2 |
 | 14 | Stats period hardcoded to 7d in frontend | `home.tsx` | OPEN |
 | 15 | No streak encouragement or daily goal UI | `home.tsx` | OPEN |
 | 16 | Break session stats not surfaced | `sessions.ts` | OPEN |
-| 17 | No loading skeleton on dashboard | `home.tsx` | OPEN |
-| 18 | ~~Keyboard shortcut effect re-registers every render~~ | `Timer.tsx` | **FIXED Sprint #3** |
-| 19 | ~~Completion detection logic fragile~~ | `Timer.tsx` | **PARTIALLY FIXED Sprint #3** (cleaner, still two-effect) |
-| 22 | No service worker for offline timer capability | Architecture | NEW |
-| 23 | manifest theme_color (#e74c3c pomored) differs from meta theme-color (#0f172a surface) -- intentional but may confuse on some Android devices | `root.tsx`, `manifest.json` | NEW |
+| 22 | ~~No service worker~~ | Architecture | **FIXED Sprint #5** |
+| 23 | manifest theme_color differs from meta theme-color | `root.tsx`, `manifest.json` | OPEN |
+| 26 | **agentSummary does not include tag breakdown** -- notes/tags data is stored but the agent summary query ignores it. Agent cannot see what type of work was done without querying raw sessions. | `sessions.ts` | **NEW** |
+| 27 | **Offline sessions silently lost** -- service worker caches assets but Convex mutations fail silently offline. Timer works but session data is not persisted. No offline queue or retry. | `timer.tsx`, `sw.js` | **NEW** |
+| 28 | **No filter-by-tag in history** -- tags exist as data but cannot be used to filter or search session history. | `history.tsx`, `sessions.ts` | **NEW** |
+| 29 | **Completion modal not dismissable by backdrop click or Escape** -- only Skip/Save buttons close it. Minor, but inconsistent with common modal UX patterns. | `Timer.tsx` | **NEW** |
 
 ---
 
-## Sprint #3 Scorecard
+## What Moved the Needle This Sprint
+
+**The completion modal is the single biggest UX improvement since wall-clock timing in Sprint #2.**
+
+Before Sprint #5, the timer was a pure countdown. You started it, it counted down, it beeped, it moved to break. There was no capture of intent, no journaling, no categorization. The session was a timestamp with a duration -- useful for "did c3z work today?" but useless for "what did c3z work on?"
+
+After Sprint #5, every completed work session has an optional note and tag set. This transforms the app from a mechanical timer into a lightweight focus journal. The tag taxonomy (deep-work, meetings, code, writing, learning, admin) maps directly to c3z's actual work categories. Over time, this data enables:
+
+- Self-reflection: "I spent 60% of my pomodoros in meetings this week"
+- Agent intelligence: "c3z has done 0 deep-work sessions in 3 days, all meetings"
+- Accountability: notes create a micro-log of what actually happened
+
+The service worker is a quieter win. It means the timer page loads instantly on repeat visits (cache-first for assets) and degrades gracefully offline (page loads, timer runs, data is lost but no crash). For a tool that lives in a pinned browser tab, fast reload matters.
+
+The CI typecheck is invisible to the end-user but prevents type regressions that could cause runtime errors. Indirect quality improvement.
+
+---
+
+## What's Still Missing for 8.0+
+
+To cross 8.0, the app needs to close three gaps:
+
+### 1. Tags visible in history (P2 #24)
+Tags are stored but not displayed. This breaks the feedback loop -- why would a user bother tagging sessions if they can never see the tags? Fix: add the `tags` field to the `Session` interface in `SessionList.tsx` and render tag pills inline on each session row.
+
+### 2. Keyboard flow through completion modal (P2 #25)
+The timer is keyboard-driven (Space/Esc). When the completion modal appears, the keyboard flow breaks. Adding Enter-to-Save and Escape-to-Skip would maintain the zero-mouse workflow. This matters because c3z is a keyboard-first user.
+
+### 3. Stats period selector (P3 #14, but nearly P2 at this point)
+After a month of daily use, a 7-day stats window is too narrow. A simple 7d/30d/all toggle on the dashboard would unlock historical insight without changing the backend (the `stats` query already accepts `sinceDaysAgo`).
+
+### 4. Tag breakdown in agent summary (P3 #26)
+The agent should know what c3z worked on, not just how much. Adding a tag frequency count to `agentSummary` output would make the agent's scolding/praise context-aware.
+
+### Stretch: Bottom nav for mobile
+The horizontal nav works but a bottom tab bar (Dashboard / Timer / History) would be more natural for phone use, especially in standalone PWA mode where there is no browser back button.
+
+**If P2 #24 and #25 are fixed and the stats period selector is added, the score reaches 8.0.**
+
+---
+
+## Sprint #5 Scorecard
 
 | Metric | Value |
 |--------|-------|
-| Sprint #2 P1s resolved | 1 of 1 (PWA manifest) |
-| Sprint #2 P2s resolved | 2 of 5 (date grouping, session dates) |
-| Sprint #2 P3s resolved | 1.5 of 5 (keyboard shortcuts, partial completion cleanup) |
-| New issues found | 4 (2 P2, 2 P3) |
-| Remaining P1 count | **0** |
-| Remaining P2 count | 4 |
+| Sprint #3 P2s resolved | 1 of 4 (notes/tags UI) |
+| Sprint #3 P3s resolved | 1 of 6 (service worker) |
+| New issues found | 6 (2 P2, 4 P3) |
+| Active P1 count | **0** |
+| Active P2 count | 4 |
+| Active P3 count | 9 |
 
 ---
 
 ## Verdict
 
-Sprint #3 did exactly what was prescribed at the end of the Sprint #2 review: fix the PWA manifest (last P1) and add date grouping to history (biggest data visibility gap). Both were executed cleanly. The keyboard shortcut and completion logic cleanups are bonus quality improvements that reduce future regression risk.
+Sprint #5 delivered the single most-requested feature from the Sprint #3 review: notes/tags input on timer completion. The implementation is clean, non-blocking (Skip is always available), and the tag taxonomy is well-chosen for c3z's workflow. The service worker adds meaningful offline resilience without introducing stale-content risks.
 
-The PWA manifest is textbook correct. Proper icons, proper colors, proper display mode. The date-grouped history transforms a useless wall of rows into a scannable daily log with pomodoro counts. These two changes together are precisely what was needed to cross the 7.0 threshold.
+The gap that appeared is predictable: tags are write-only. You can add them but not see them in history, not filter by them, not get them in the agent summary. This is a classic "input without output" pattern that needs to be closed in the next sprint.
 
-What keeps this from scoring higher: the app is functionally complete for basic timer + history, but the "power user daily driver" features are missing. Notes/tags have full backend support but no UI input. Stats are locked to 7 days. History has no filtering. The nav is not mobile-responsive. These are all P2s -- none of them block daily use, but they limit how much value a committed user extracts over weeks of usage.
+The score moves from 7.3 to 7.7. Timer UX hits 9 -- it is genuinely satisfying to use. Data Visibility and Agent Integration each gain 0.5 from the notes/tags infrastructure. First Impression gains 0.5 from the loading skeleton. Mobile holds steady because no mobile-specific work was done.
 
-The agent integration story has not advanced since Sprint #1. The foundation is solid but the "agent scolds c3z" use case still requires the agent to make raw Convex queries and interpret the data itself. A dedicated summary endpoint would make this frictionless.
-
-**Previous score: 6.6 / 10**
-**Current score: 7.3 / 10**
+**Previous score: 7.3 / 10**
+**Current score: 7.7 / 10**
 **P1 count: 0**
-**Stop condition met: Yes** (score >= 7.0, P1 = 0)
 
-**To reach 8.0+:** Add notes/tags input on timer completion (P2 #7), make the nav responsive (P2 #8), and add an agent summary query (P2 #10). These three would push Timer UX toward 9, Mobile toward 8, and Agent toward 8.
+**Path to 8.0:** Display tags in session list, add Enter/Escape shortcuts to completion modal, add stats period toggle.
