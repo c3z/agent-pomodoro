@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { playCompletionSound } from "~/lib/sounds";
 
 type TimerMode = "work" | "break" | "longBreak";
 
@@ -27,47 +28,6 @@ const MODE_COLORS: Record<TimerMode, string> = {
   break: "text-breakgreen",
   longBreak: "text-blue-400",
 };
-
-let audioCtx: AudioContext | null = null;
-
-function getAudioContext(): AudioContext {
-  if (!audioCtx || audioCtx.state === "closed") {
-    audioCtx = new AudioContext();
-  }
-  return audioCtx;
-}
-
-function playCompletionSound() {
-  try {
-    const ctx = getAudioContext();
-    if (ctx.state === "suspended") ctx.resume();
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 830;
-    osc.type = "sine";
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.8);
-    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
-
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.frequency.value = 1046;
-    osc2.type = "sine";
-    gain2.gain.setValueAtTime(0, ctx.currentTime + 0.15);
-    gain2.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.2);
-    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
-    osc2.start(ctx.currentTime + 0.15);
-    osc2.stop(ctx.currentTime + 1.0);
-    osc2.onended = () => { osc2.disconnect(); gain2.disconnect(); };
-  } catch {}
-}
 
 function sendNotification(mode: TimerMode) {
   if (typeof window === "undefined" || !("Notification" in window)) return;
@@ -104,6 +64,24 @@ export function Timer({
   const endTimeRef = useRef<number>(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
+
+  // Wake Lock — keep screen on during active timer
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  const requestWakeLock = async () => {
+    if (typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    try {
+      wakeLockRef.current = await navigator.wakeLock.request("screen");
+    } catch {}
+  };
+
+  const releaseWakeLock = () => {
+    wakeLockRef.current?.release().catch(() => {});
+    wakeLockRef.current = null;
+  };
+
+  // Release wake lock on unmount (e.g. navigating away from /timer)
+  useEffect(() => () => releaseWakeLock(), []);
 
   // Stable refs for callbacks to avoid useEffect dependency issues
   const onCompleteRef = useRef(onSessionComplete);
@@ -153,8 +131,8 @@ export function Timer({
         setIsPaused(false);
         startedRef.current = false;
 
-        playCompletionSound();
-        // handleComplete logic inline to avoid dependency issues
+        playCompletionSound(modeRef.current);
+        releaseWakeLock();
       }
     };
 
@@ -226,7 +204,7 @@ export function Timer({
 
   const QUICK_TAGS = ["deep-work", "meetings", "code", "writing", "learning", "admin"];
 
-  // Visibilitychange: recalculate when tab regains focus
+  // Visibilitychange: recalculate when tab regains focus + re-acquire wake lock
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible" && endTimeRef.current > 0) {
@@ -235,6 +213,8 @@ export function Timer({
           Math.ceil((endTimeRef.current - Date.now()) / 1000)
         );
         setSecondsLeft(remaining);
+        // Re-acquire wake lock (released automatically on tab hide)
+        if (isRunningRef.current) requestWakeLock();
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -290,11 +270,13 @@ export function Timer({
     endTimeRef.current = Date.now() + secondsLeft * 1000;
     setIsRunning(true);
     setIsPaused(false);
+    requestWakeLock();
   };
 
   const pause = () => {
     setIsRunning(false);
     setIsPaused(true);
+    releaseWakeLock();
     // Freeze remaining time from wall clock
     const remaining = Math.max(
       0,
@@ -306,6 +288,7 @@ export function Timer({
   const stop = () => {
     setIsRunning(false);
     setIsPaused(false);
+    releaseWakeLock();
     endTimeRef.current = 0;
     if (startedRef.current) {
       onInterruptRef.current?.();

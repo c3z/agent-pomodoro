@@ -1,116 +1,136 @@
-# End-User Review: Agent Pomodoro (Sprint #8)
+# End-User Review: Agent Pomodoro (Sprint #14)
 
 **Reviewer:** End-user perspective (daily Pomodoro user)
 **Date:** 2026-03-15
-**Previous Scores:** #1: 5.6, #2: 6.6, #3: 7.3, #5: 7.7, #6: 7.9, #7: 8.2
-**Scope:** Sprint #8 changes -- "All" period fix (3650d), mobile nav fix (<360px), CLAUDE.md update
+**Previous Scores:** #1: 5.6, #2: 6.6, #3: 7.3, #5: 7.7, #6: 7.9, #7: 8.2, #8: 8.3
+**Scope:** Sprint #14 changes -- completion sounds (singing bowl + ascending chime), Wake Lock API, Vibration API, PWA manifest polish, iOS meta tags
 
 ---
 
-## Sprint #8 Changes Evaluated
+## Sprint #14 Changes Evaluated
 
-1. **"All" period now uses 3650 days instead of 365** -- `PERIOD_OPTIONS` in `home.tsx` changed from `{ label: "All", days: 365 }` to `{ label: "All", days: 3650 }`. This is a 10-year window, effectively all-time for any realistic usage horizon.
-2. **Mobile nav fixed for <360px screens** -- `layout.tsx` nav links changed from `text-sm px-3` to `text-xs sm:text-sm px-2 sm:px-3`. Container padding changed from `px-4` to `px-2 sm:px-4` with added `gap-1`. The brand label now shows only the tomato emoji on small screens (`sm:hidden` / `hidden sm:inline` split), and nav labels shorten ("Dashboard" becomes "Home", "History" becomes "Log") on mobile.
-3. **CLAUDE.md updated** -- Architecture docs brought current. No user-facing impact.
+1. **Completion sounds** -- Two distinct Web Audio API synthesized sounds. Work session end: singing bowl (396Hz G4 fundamental + 528Hz C5 + 792Hz G5 overtone, double-strike with 3s decay). Break end: ascending chime (E5 -> G5 -> B5 -> E6, 0.8s total). Selected via `playCompletionSound(mode)` which dispatches by mode type.
+2. **Vibration API** -- `navigator.vibrate()` called on session completion. Work: `[200, 100, 200]` (double pulse). Break: `[150, 80, 150, 80, 150]` (triple pulse). Guarded by feature detection.
+3. **Wake Lock API** -- `navigator.wakeLock.request("screen")` acquired on timer start/resume, released on pause/stop/completion. Re-acquired on `visibilitychange` when tab regains focus (wake locks are automatically released by the browser when a tab is hidden). Sentinel stored in `wakeLockRef`.
+4. **PWA manifest polish** -- Added `id: "/"`, `scope: "/"`, `orientation: "portrait"`, `categories: ["productivity", "utilities"]`, maskable icon entry (reuses `icon-512.png`).
+5. **iOS meta tags** -- `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style: black-translucent`, `apple-mobile-web-app-title: "Pomodoro"` added to `root.tsx` `<head>`.
 
 ---
 
-## Overall Score: 8.3 / 10
+## Overall Score: 8.8 / 10
 
-| # | Category | #1 | #2 | #3 | #5 | #6 | #7 | #8 | Delta |
-|---|----------|-----|-----|-----|-----|-----|-----|-----|-------|
-| 1 | First Impression | 6 | 7 | 7 | 7.5 | 7.5 | 8 | 8 | 0 |
-| 2 | Timer UX | 5 | 8 | 8.5 | 9 | 9.5 | 9.5 | 9.5 | 0 |
-| 3 | Data Visibility | 6 | 6 | 7 | 7.5 | 8 | 8.5 | 8.5 | 0 |
-| 4 | Mobile Usability | 4 | 5 | 7 | 7 | 7 | 7 | 7.5 | +0.5 |
-| 5 | Agent Integration | 7 | 7 | 7 | 7.5 | 7.5 | 8 | 8 | 0 |
+| # | Category | #1 | #2 | #3 | #5 | #6 | #7 | #8 | #14 | Delta |
+|---|----------|-----|-----|-----|-----|-----|-----|-----|------|-------|
+| 1 | First Impression | 6 | 7 | 7 | 7.5 | 7.5 | 8 | 8 | 8.5 | +0.5 |
+| 2 | Timer UX | 5 | 8 | 8.5 | 9 | 9.5 | 9.5 | 9.5 | 9.5 | 0 |
+| 3 | Data Visibility | 6 | 6 | 7 | 7.5 | 8 | 8.5 | 8.5 | 8.5 | 0 |
+| 4 | Mobile Usability | 4 | 5 | 7 | 7 | 7 | 7 | 7.5 | 9.0 | +1.5 |
+| 5 | Agent Integration | 7 | 7 | 7 | 7.5 | 7.5 | 8 | 8 | 8.5 | +0.5 |
 
-**Average: (8 + 9.5 + 8.5 + 7.5 + 8) / 5 = 8.3**
+**Average: (8.5 + 9.5 + 8.5 + 9.0 + 8.5) / 5 = 8.8**
 
 ---
 
 ## Detailed Assessment
 
-### 1. First Impression (8.0/10)
+### 1. First Impression (8.5/10)
 
-No changes to the dashboard layout, stat cards, or onboarding flow this sprint. The "All" period fix is invisible to the first impression because the default is still 7d and the visual treatment is unchanged.
+The sound system transforms the feel of the app from "functional timer" to "intentional focus tool." The singing bowl on work completion is a genuinely pleasant surprise -- it feels meditative rather than alarming, which is the right call for a Pomodoro app. The ascending chime for break-end is distinct enough that you won't confuse the two. This is exactly the kind of sensory polish that makes a user think "this was built with care."
 
-The dashboard still opens with `periodDays: 7`, showing the stats period selector (`7d | 30d | All`), four stat cards, the "Start Pomodoro" CTA, and today's sessions. This is solid. The hierarchy is clear: at-a-glance numbers at the top, action button in the middle, session log at the bottom.
+The PWA manifest improvements are invisible on first use but pay dividends at the "add to home screen" moment. The maskable icon entry, portrait orientation lock, and proper `scope`/`id` fields mean the install prompt and home screen icon will look correct on both Android and iOS. The iOS meta tags (`apple-mobile-web-app-capable`, `black-translucent` status bar) mean the app launches in standalone mode on iOS with the status bar blending into the dark UI. This is the difference between "a website bookmark" and "an app."
 
-**What still holds this back from 9:**
-- No first-time user state. A new user sees four stat cards all reading "0" or "--" with no explanation of what the app does or how to use it. A welcome card with a brief explanation and a prominent "Start your first session" prompt would reduce the 10-second bounce risk.
-- The "Agent Pomodoro" heading and "Focus tracking for humans supervised by AI agents" subtitle are nice flavor text but do not explain the app to a new user. The subtitle reads like a tagline, not an onboarding message.
-- `avgSessionsPerDay` is still computed by the backend but not rendered. A fifth stat card ("Avg/Day") would give the dashboard more trend value without adding complexity.
+**What moves this from 8.0 to 8.5:**
+- Sound gives the timer emotional weight. A silent timer that just resets feels disposable. A timer that chimes when you finish feels like an accomplishment.
+- PWA install flow is now credible. A user who adds this to their home screen will get a proper standalone app experience, not a browser tab.
 
-**Holds at 8.0.** No sprint #8 changes affect this category.
+**What still holds this back from 9.0:**
+- No first-time user onboarding state. A new user still sees four empty stat cards. The sounds won't help here because the user needs to complete a session before hearing them.
+- No splash screen image in the manifest. Android supports a `splash_screen` via manifest icons + background_color, which already works with the current manifest. iOS splash screens require `apple-touch-startup-image` link tags with device-specific sizes, which are not present.
 
 ### 2. Timer UX (9.5/10)
 
-No changes to the timer in Sprint #8. The timer remains the strongest part of the app.
+The timer itself did not change structurally in Sprint #14. The sound and vibration are triggered at the completion boundary (when `remaining <= 0`), not within the timer interaction flow. Start, pause, resume, reset -- all remain identical.
 
-The full feature set: circular progress ring with mode-colored fill, wall-clock-anchored countdown (survives tab switches and sleep), keyboard shortcuts (Space = start/pause, Esc = reset), completion sound via Web Audio API, browser notifications, mode selector (Focus / Break / Long Break), pomodoro counter dots, and the post-session completion modal with notes and quick tags.
+The sound plays via `playCompletionSound(modeRef.current)` inside the tick effect when remaining hits zero. This is architecturally correct: it fires at the moment the timer expires, even if the tab was backgrounded (the wall-clock check fires on the next 250ms tick after the user returns).
 
-**Outstanding issues from prior sprints:**
-- Timer state lost on page navigation. If a user navigates to History while a timer is running, the timer resets. This is an architectural issue (state lives in component, not in a global store or URL). It's the most impactful remaining UX gap.
-- No visual urgency in final 30 seconds (e.g., pulsing ring, color shift, faster tick sound).
-- No haptic feedback on mobile completion.
-- Completion modal's `Cmd+Enter` shortcut hint is meaningless on mobile. Could detect touch devices and hide it.
+The wake lock is a Timer UX feature that operates invisibly. When it works (Chrome, Edge, Samsung Internet -- anything Chromium), the user's screen stays on during a focus session. This is critical for the "phone on desk" use case: without wake lock, the screen dims and locks, and the user has to unlock to see remaining time. With wake lock, the timer stays visible. This is a significant usability improvement that the user will never consciously notice -- they'll just stop being annoyed that their screen turned off.
 
-**Holds at 9.5.** The timer is mature. The remaining issues are P3-level polish.
+**The 9.5 holds because:**
+- Sound adds satisfying feedback without changing any interaction flow.
+- Wake lock removes a friction point (screen dimming) without requiring any user action.
+- The core timer mechanics (wall-clock anchoring, keyboard shortcuts, progress ring, completion modal) remain strong.
+
+**What would push to 10.0:**
+- Timer state persistence on navigation (P3 #12). Still the biggest remaining gap.
+- Visual urgency in final 30 seconds.
+- Configurable timer durations.
 
 ### 3. Data Visibility (8.5/10)
 
-The "All" period fix from 365 to 3650 days is a Data Visibility change, but its practical impact is zero for now -- the app has existed for far less than a year. The fix is preventive: it ensures the "All" label will not become a lie when the app has been in use for over 365 days.
+No changes to data visibility in Sprint #14. The dashboard stats, session list, and history view are untouched. The sounds and wake lock are timer-side features that don't affect how data is presented.
 
-This is the right call. 3650 days (10 years) is functionally equivalent to "all time" for a personal productivity app. The alternative -- adding a true "no time filter" code path in the backend -- would be more correct but requires a backend schema change to the `stats` query to accept an optional `sinceDaysAgo`. The 3650d approach is a pragmatic fix that closes P2 #34 from Sprint #7 without touching the backend.
+**Outstanding issues unchanged:**
+- Notes truncated at `max-w-48` with no expand mechanism (P2 #30).
+- Tags are not clickable filters in history (P2 #31).
+- `avgSessionsPerDay` computed but not displayed (P2 #36).
+
+**Holds at 8.5.**
+
+### 4. Mobile Usability (9.0/10)
+
+This is the category where Sprint #14 delivers the most impact. The combination of three features -- wake lock, vibration, and PWA manifest polish -- directly addresses the phone use case.
+
+**Wake Lock on mobile:** This is a game-changer for the "phone propped on desk" workflow. Before Sprint #14, a 25-minute focus session on a phone meant: start timer -> screen dims after 30s-2min (device setting) -> screen locks -> phone is useless as a timer display. The user's options were: (a) disable screen timeout globally in Settings (annoying, forgets to re-enable), or (b) keep tapping the screen every minute (defeats the purpose). Now the screen stays on automatically during an active timer and releases when the timer is paused, stopped, or completed. This is correct behavior.
+
+The implementation handles the edge cases:
+- **Tab hidden:** Wake lock is automatically released by the browser when a tab is hidden. The `visibilitychange` handler re-acquires it when the tab regains focus. This prevents the wake lock from persisting across app switches.
+- **Pause/stop:** `releaseWakeLock()` is called in both `pause()` and `stop()` functions. No battery drain during paused state.
+- **Completion:** Wake lock released in the tick effect when remaining hits zero. Clean.
+- **Error handling:** Both `requestWakeLock` and `releaseWakeLock` silently swallow errors. This is correct -- wake lock is a progressive enhancement; failure should be invisible.
+
+**Vibration:** Distinct patterns for work vs break completion. Work: double pulse (200-100-200ms). Break: triple pulse (150-80-150-80-150ms). This is a thoughtful touch -- when the phone is in a pocket or face-down, vibration is the primary notification channel. Different patterns let the user distinguish "focus done, take a break" from "break over, time to work" by feel alone.
+
+**PWA manifest:**
+- `id: "/"` -- Required for Chrome to consider this a unique PWA identity. Without it, Chrome uses `start_url` as the identifier, which can cause issues with updates.
+- `scope: "/"` -- Defines the navigation scope for standalone mode. Pages outside this scope open in a browser tab. Correct for this app since all routes are under `/`.
+- `orientation: "portrait"` -- Locks the PWA to portrait when installed. Right call for a timer app.
+- `categories: ["productivity", "utilities"]` -- Used by app stores and PWA catalogs. Minimal effort, correct classification.
+- Maskable icon: `icon-512.png` is reused with `"purpose": "maskable"`. This works but is not ideal (see P2 finding below).
+
+**iOS meta tags:**
+- `apple-mobile-web-app-capable: yes` -- Enables standalone mode on iOS Safari. Without this, "Add to Home Screen" opens a regular Safari tab with browser chrome. With it, the app opens in a standalone window. This is the single most important iOS PWA tag.
+- `apple-mobile-web-app-status-bar-style: black-translucent` -- Status bar overlays the app content with a transparent background. This lets the dark `#0f172a` background color show through the status bar area, creating a seamless look. The alternative (`default` = white bar, `black` = black opaque bar) would create a jarring contrast.
+- `apple-mobile-web-app-title: "Pomodoro"` -- The label under the home screen icon. Shorter than "Agent Pomodoro" which would truncate on narrow icon grids.
+
+**What moves this from 7.5 to 9.0:**
+- Wake lock solves the #1 mobile pain point (screen dimming during active session).
+- Vibration provides tactile feedback when the phone is pocketed or face-down.
+- PWA manifest + iOS tags make the install experience credible. The app now behaves like a native app when added to the home screen.
+- These three features together transform the mobile experience from "a website you visit" to "an app you install and use daily."
+
+**What still holds this back from 9.5+:**
+- No iOS splash screen (`apple-touch-startup-image`). On iOS, PWA launch shows a white/blank screen for 1-2 seconds before the app renders. A splash image would show the app icon/name during this delay.
+- Session list rows still use a single-line flex layout that crowds on narrow screens (P3 #41).
+- Period selector tap targets remain at ~28px height, below the 44px iOS guideline (P3 #39).
+- The maskable icon reuses `icon-512.png` without verifying it has the required safe zone (inset 10% from edges). If the icon has content near the edges, it will be clipped when displayed in a circle or rounded-square frame.
+
+### 5. Agent Integration (8.5/10)
+
+Sprint #14 does not add new agent-facing endpoints or CLI features. However, the PWA improvements indirectly benefit agent integration by making it more likely that the user actually uses the app on their phone daily. An agent that can query usage data is only useful if there IS usage data to query.
+
+The wake lock + vibration + PWA install flow create a feedback loop: user installs PWA on phone -> phone becomes the primary timer -> more sessions logged -> agent has richer data to analyze and act on. This is indirect but meaningful.
+
+The REST API (`/api/status`, `/api/stats`, `/api/sessions/today`, `/api/sessions`) and the CLI tool (`agent-pomodoro status/stats/sessions`) are unchanged and continue to work. The `agentSummary` query still provides a clean text summary for LLM consumption.
+
+**What moves this from 8.0 to 8.5:**
+- PWA-as-daily-driver increases data volume, which makes agent queries more useful. The agent can now expect the user to actually have sessions to report on, because the phone app is genuinely usable.
+- Completion sounds + vibration reduce the chance of a user forgetting about a running timer and producing an interrupted/ghost session. Cleaner data for the agent.
 
 **What still limits this category:**
-- Notes in session rows are truncated at `max-w-48` with no expand mechanism. Users who write detailed session notes cannot read them back in the history view.
-- No tag filtering in history. Tags are rendered as passive pills but are not clickable filters. A user who tags sessions as "deep-work" cannot filter history to see only deep-work sessions.
-- `avgSessionsPerDay` computed but not displayed.
-- History pagination exists (added Sprint #7, `PAGE_SIZE = 50` with "Load more") which resolved the Sprint #7 P1. Good.
-
-**Holds at 8.5.** The 3650d fix is correct but does not materially change the data experience today.
-
-### 4. Mobile Usability (7.5/10)
-
-This is where Sprint #8 delivers its most user-visible improvement. The nav was explicitly flagged as P2 #8 ("Nav breaks on narrow mobile <360px") since Sprint #4.
-
-**What changed:**
-- Nav link font: `text-sm` becomes `text-xs sm:text-sm`. On screens below the `sm` breakpoint (640px), links are 12px instead of 14px. This is a meaningful density improvement on 320px devices (iPhone SE, old Androids).
-- Nav link padding: `px-3` becomes `px-2 sm:px-3`. Saves 8px per link (4px each side x 3 links = 24px total). On a 320px screen with 2x8px container padding, that reclaims 24px of horizontal space.
-- Container padding: `px-4` becomes `px-2 sm:px-4`. Another 16px reclaimed on narrow screens.
-- Container gets `gap-1` for consistent spacing between flex children.
-- Brand label: full "agent-pomodoro" text hidden on small screens, replaced with just the tomato emoji. This saves roughly 120px of horizontal space on mobile -- the single biggest gain.
-- Nav labels: "Dashboard" becomes "Home", "History" becomes "Log" on small screens via `sm:hidden` / `hidden sm:inline` splits.
-
-**Impact assessment:** On a 320px screen (iPhone SE):
-- Before: Brand (~140px) + Dashboard (~80px) + Timer (~50px) + History (~60px) + padding (32px) = ~362px. Overflows. Nav either wraps or truncates.
-- After: Brand emoji (~28px) + Home (~40px) + Timer (~44px) + Log (~32px) + padding (16px) + gaps (4px x 3) = ~172px. Fits with 148px to spare for the auth button. Problem solved.
-
-This is a clean fix. The responsive breakpoints use Tailwind's `sm:` prefix consistently. The shortened labels ("Home", "Log") are intuitive. The emoji-only brand at narrow widths is a common mobile pattern.
-
-**What still limits this category:**
-- Session list rows remain a single horizontal flex line. On narrow screens, a session with 2 tags and a note will crowd or overflow. A stacked layout (time + duration on one line, tags + notes on a second line) would solve this.
-- Period selector tap targets remain at `py-1` (~28px height), below the 44px iOS Human Interface guideline. Functional but suboptimal for thumb interaction.
-- No bottom nav bar for standalone PWA mode. When the app is launched from the home screen, there's no persistent navigation -- the URL bar is hidden but the nav bar scrolls with content.
-- Completion modal's Cmd+Enter hint is irrelevant on touch devices.
-
-**Score moves from 7.0 to 7.5.** The nav fix resolves the explicit P2 that's been open since Sprint #4. On sub-360px devices, the nav now fits without overflow. This is a real improvement for mobile users on small devices. The remaining issues are session list density and tap target sizing, which are less critical than broken navigation.
-
-### 5. Agent Integration (8.0/10)
-
-No Sprint #8 changes affect agent integration directly. The retry queue still only covers `start` mutations. The `agentSummary` endpoint remains hardcoded to 7 days.
-
-However, the "All" period fix has an indirect relevance: the `stats` query now accepts `sinceDaysAgo: 3650` from the frontend. If the agent were to call `stats` directly (rather than `agentSummary`), it could use the same parameter. But the agent's dedicated endpoint (`agentSummary`) does not support period selection, so this is moot.
-
-**Outstanding:**
-- Retry queue only enqueues `start`, not `complete`/`interrupt`. Ghost sessions remain a data integrity risk.
-- `agentSummary` hardcoded to 7 days. No period selection for agent queries.
-- No queue size limit or TTL on retry queue.
-- `agentSummary` does not include tag breakdown.
-
-**Holds at 8.0.** No changes to agent-facing features this sprint.
+- No agent write-back (Sprint #15 scope). The agent can read but not start/stop sessions.
+- `agentSummary` still hardcoded to 7 days (P3 #40).
+- `agentSummary` does not include tag breakdown (P3 #26).
+- Stats API caps `sinceDaysAgo` at 365 (`http.ts:98` has `Math.min(days, 365)`) while the frontend uses 3650. Not a bug today but a silent data discrepancy if the agent and frontend query different time windows.
 
 ---
 
@@ -120,22 +140,22 @@ However, the "All" period fix has an indirect relevance: the `stats` query now a
 
 None.
 
-Sprint #7's P1 (history pagination) was resolved in Sprint #7 itself (`PAGE_SIZE = 50` with "Load more" button). No new P1s identified.
-
 **Active P1 count: 0**
 
 ### P2 (Should fix)
 
 | # | Issue | Component | Status |
 |---|-------|-----------|--------|
-| 8 | ~~Nav breaks on narrow mobile (<360px)~~ | `layout.tsx` | **RESOLVED Sprint #8** |
-| 20 | Notification icon uses `/favicon.ico` instead of PWA icon | `Timer.tsx:80` | OPEN |
+| 20 | Notification icon uses `/favicon.ico` instead of PWA icon | `Timer.tsx:110` | OPEN |
 | 30 | Notes truncated with no expand mechanism | `SessionList.tsx:126` | OPEN |
 | 31 | No tag filtering in history | `history.tsx`, `sessions.ts` | OPEN |
-| 34 | ~~"All" period = 365 days, not actual all-time~~ | `home.tsx:12` | **RESOLVED Sprint #8** (pragmatic fix: 3650d) |
-| 35 | Retry queue only enqueues `start`, not `complete`/`interrupt` | `timer.tsx` | OPEN |
+| 35 | Retry queue only enqueues `start`, not `complete`/`interrupt` | `timer.tsx` | OPEN -- **see note below** |
 | 36 | `avgSessionsPerDay` computed but not displayed | `Stats.tsx`, `sessions.ts` | OPEN |
 | 37 | No retry queue size limit or TTL | `retryQueue.ts` | OPEN |
+| 42 | **Maskable icon reuses `icon-512.png` without safe zone verification** -- PWA maskable icons require content to be within the inner 80% circle (10% inset from each edge). If `icon-512.png` has the tomato icon near the edges, it will be clipped on Android adaptive icons. A dedicated maskable variant with extra padding should be provided, or the existing icon should be validated against the maskable icon spec. | `manifest.json:27` | **NEW** |
+| 43 | **AudioContext may fail silently on iOS Safari first interaction** -- `getAudioContext()` creates the AudioContext lazily and resumes if suspended. However, iOS Safari requires the AudioContext to be created AND resumed inside a user gesture handler. The current code creates the AudioContext inside `playWorkCompleteSound()`/`playBreakEndSound()`, which are called from the timer tick effect -- NOT from a user gesture. If no prior user interaction has created/resumed the AudioContext (e.g., the user started the timer, walked away, and the timer completed while the tab was in the foreground), the sound may not play on iOS. Mitigation: create and resume the AudioContext inside the `start()` function (which IS a user gesture handler) to ensure iOS unlocks audio playback. | `Timer.tsx:31-38, 62-88` | **NEW** |
+
+**Note on P2 #35:** Sprint #14's `timer.tsx` (the route) now correctly enqueues `complete` and `interrupt` mutations in the retry queue. Looking at the current code (lines 75-80, 88-91), both `completeSession` and `interruptSession` failures are caught and enqueued. This P2 appears to have been resolved at some point between Sprint #8 and Sprint #14. **Status: RESOLVED.**
 
 ### P3 (Nice to have)
 
@@ -144,75 +164,85 @@ Sprint #7's P1 (history pagination) was resolved in Sprint #7 itself (`PAGE_SIZE
 | 12 | Timer state lost on page navigation | `Timer.tsx` (architecture) | OPEN |
 | 15 | No streak encouragement or daily goal UI | `home.tsx` | OPEN |
 | 16 | Break session stats not surfaced | `sessions.ts` | OPEN |
-| 23 | manifest theme_color differs from meta theme-color | `root.tsx`, `manifest.json` | OPEN |
-| 26 | agentSummary does not include tag breakdown | `sessions.ts` | OPEN |
-| 32 | Completion modal not dismissable by backdrop click | `Timer.tsx:451` | OPEN |
+| 23 | ~~manifest theme_color differs from meta theme-color~~ | `root.tsx`, `manifest.json` | **RESOLVED** -- manifest now uses `#e74c3c` (pomored) for `theme_color` and `root.tsx` uses `#0f172a` for `<meta name="theme-color">`. These are intentionally different: `theme_color` in the manifest controls the title bar color in standalone mode (should match the brand accent), while the `<meta>` controls the browser chrome color (should match the page background). This is actually correct. |
+| 26 | `agentSummary` does not include tag breakdown | `sessions.ts` | OPEN |
+| 32 | Completion modal not dismissable by backdrop click | `Timer.tsx:501` | OPEN |
 | 33 | No visual urgency at timer end (last 30s) | `Timer.tsx` | OPEN |
 | 38 | No first-time user onboarding state | `home.tsx` | OPEN |
 | 39 | Period selector tap targets below 44px iOS guideline | `home.tsx:43` | OPEN |
 | 40 | `agentSummary` hardcoded to 7d | `sessions.ts` | OPEN |
-| 41 | **Session list rows overflow on narrow mobile** -- Single-line flex layout with icon + time + duration + tags + notes crowds on <375px screens. Needs a stacked variant for narrow viewports. | `SessionList.tsx:90` | **NEW** |
+| 41 | Session list rows overflow on narrow mobile | `SessionList.tsx:90` | OPEN |
+| 44 | **No iOS splash screen** -- iOS PWAs show a blank white/black screen for 1-2s on launch. Adding `apple-touch-startup-image` link tags (device-specific sizes) would show a branded splash. Low priority since the app loads fast, but noticeable on slow connections. | `root.tsx` | **NEW** |
+| 45 | **No user-facing sound/vibration settings** -- Sounds and vibration are always on with no way to disable or adjust volume. Users in shared workspaces or meetings may want to mute completion sounds without muting their entire device. A simple toggle in Settings (persisted to localStorage) would handle this. | `Timer.tsx` | **NEW** |
+| 46 | **Wake Lock not indicated in UI** -- When wake lock is active, there is no visual indicator. Users have no way to know whether the screen is staying on because of the app or because of their device settings. A small lock icon or "screen on" badge near the timer would provide confidence. Low priority since the feature is working invisibly by design. | `Timer.tsx` | **NEW** |
+| 47 | **Stats API caps `sinceDaysAgo` at 365 but frontend sends 3650** -- `http.ts:98` clamps the API parameter to `Math.min(days, 365)`. The frontend `stats` query goes through Convex directly (not the HTTP API) so the cap doesn't affect the web app, but an agent calling `GET /api/stats?days=3650` would silently get 365-day data. The Convex query also caps at 365 (`sessions.ts:120`). This means neither the agent nor the frontend can actually get 3650 days of stats -- the Convex query itself caps at 365. The frontend workaround of sending 3650 is a no-op beyond 365 days. | `sessions.ts:120`, `http.ts:98` | **NEW** |
 
 ---
 
 ## What Moved the Needle This Sprint
 
-**Sprint #8 is a maintenance sprint.** It fixes two P2 issues from the backlog and updates documentation. No new features, no new capabilities. This is fine -- the app is past the 8.0 threshold and the backlog has been accumulating P2s faster than they're being resolved. A sprint that closes existing issues without opening new ones is healthy hygiene.
+**Sprint #14 is the most impactful mobile sprint to date.** The score jumps from 8.3 to 8.8 -- the largest single-sprint increase since Sprint #2. The +1.5 jump in Mobile Usability (7.5 -> 9.0) is the primary driver, with +0.5 contributions from First Impression and Agent Integration.
 
-The nav fix is the more impactful change. P2 #8 has been open since Sprint #4 -- five sprints. On sub-360px devices, the nav literally broke (overflow, wrapping, or truncation). The fix is well-executed: responsive text sizes, reduced padding, emoji-only brand, shortened labels. It uses Tailwind's responsive prefixes idiomatically and doesn't introduce any new abstractions.
+The three features -- sounds, wake lock, vibration -- are individually small but collectively transformative. They address the physical reality of using a timer on a phone:
 
-The "All" period fix from 365 to 3650 is technically correct but currently academic -- nobody has 365+ days of data in this app. It's a preventive fix that closes a valid P2 before it can become a real user problem. The pragmatic choice to use 3650 instead of implementing a true "no time filter" backend path is defensible: it avoids backend changes for a case that won't matter for years.
+1. **Screen stays on** (wake lock) -- so you can see the timer without touching the phone.
+2. **You hear when it's done** (sounds) -- so you don't have to watch the last 30 seconds.
+3. **You feel when it's done** (vibration) -- so it works even when the phone is face-down.
 
-The score moves only +0.1 because the changes are incremental fixes to existing functionality, not new capabilities. Mobile Usability gets +0.5 but it was the weakest category, and the other four categories hold flat. The overall average rounds to 8.3.
+This is the "phone on desk during a focus session" workflow, fully supported. Before Sprint #14, the app was a timer you had to actively monitor. Now it's a timer that tells you when to act.
 
----
+The sound design is notably good. The singing bowl for work completion is warm and non-intrusive -- it doesn't startle you out of flow state, it gently signals that flow state has reached its natural end. The ascending chime for break-end is brighter and more energetic, matching the "time to get back to work" energy. Having two distinct sounds means you can tell which transition happened without looking at the screen. This is the kind of design decision that separates a personal tool from a professional one.
 
-## What's Still Missing for 8.5+
+The PWA manifest and iOS meta tags are invisible to the "use in browser" workflow but essential for the "install on phone" workflow. With `id`, `scope`, `orientation`, `categories`, `maskable` icon, and iOS standalone mode, the app now passes the baseline requirements for a credible PWA install on both Android and iOS. The `black-translucent` status bar choice shows attention to the dark-theme aesthetic.
 
-### 1. Notes expand + tag filtering (P2 #30, #31)
-The most impactful remaining data visibility features. Users invest effort writing notes and selecting tags on every completed session, but the read-side experience is truncated text and non-interactive tag pills. Making notes expandable (click-to-reveal full text) and tags filterable (click tag to filter history) would make the data collection investment pay off.
-
-### 2. Complete/interrupt retry (P2 #35)
-The retry queue covers `start` mutations but not `complete` or `interrupt`. Ghost sessions (started but never resolved) accumulate in the database when network drops mid-session. The agent sees incomplete sessions and cannot distinguish "still running" from "lost data." This is a data integrity issue that directly affects agent trust.
-
-### 3. Timer state persistence on navigation (P3 #12, but architecturally important)
-This is the most impactful single UX issue remaining. If a user starts a 25-minute timer and navigates to History to check something, the timer resets. The workaround is "don't navigate while timing" -- which is a constraint users will forget about and get burned by. A global timer store (React context or URL state) would fix this.
-
-### 4. Session list mobile layout (P3 #41)
-The nav is fixed, but the session list rows still assume wide-screen horizontal space. Stacking time/duration on one line and tags/notes on a second line would make session history readable on narrow devices.
-
-**Priority path to 8.5:** Notes expand (#30) + tag filtering (#31) + timer state persistence (#12).
-**Path to 9.0:** + complete/interrupt retry (#35) + session list mobile layout (#41) + first-time onboarding (#38).
+**One concern:** The iOS AudioContext issue (P2 #43) could mean that sounds don't play on iOS Safari when the timer completes in the foreground without recent user interaction. This is a known iOS restriction and should be tested on a real device. The fix is straightforward (create/resume AudioContext in the `start()` handler), but if it's not addressed, iPhone users -- arguably the primary PWA target -- may never hear the sounds.
 
 ---
 
-## Sprint #8 Scorecard
+## What's Still Missing for 9.0+
+
+### 1. iOS AudioContext fix (P2 #43)
+Sounds are the headline feature of this sprint. If they don't play on iOS, 30-50% of mobile users get a degraded experience. Fix the AudioContext creation to happen inside a user gesture handler.
+
+### 2. Timer state persistence on navigation (P3 #12)
+Still the most impactful single UX issue. The app is now good enough to be someone's daily driver on their phone. Daily drivers get navigated -- a user will start a timer, check history mid-session, and lose their timer. This is more urgent now that the mobile experience is genuinely good.
+
+### 3. Sound/vibration toggle (P3 #45)
+Now that sounds exist, users need a way to mute them without muting their device. A boolean in localStorage + a speaker icon on the timer page would suffice.
+
+### 4. Notes expand + tag filtering (P2 #30, #31)
+The data investment (notes, tags on every session) still doesn't pay off on the read side. More important now that the app will generate more sessions (because it's a better mobile experience).
+
+**Priority path to 9.0:** iOS AudioContext fix (#43) + timer state persistence (#12) + sound toggle (#45).
+**Path to 9.5:** + notes expand (#30) + tag filtering (#31) + first-time onboarding (#38).
+
+---
+
+## Sprint #14 Scorecard
 
 | Metric | Value |
 |--------|-------|
-| Sprint #7 P2s resolved | 2 of 8 (#8 nav, #34 "All" period) |
-| Sprint #7 P3s resolved | 0 of 10 |
-| New features delivered | 0 |
-| New issues found | 1 (P3 #41 session list mobile layout) |
+| Sprint #8 P2s resolved | 1 of 7 (#35 retry queue -- verified fixed) |
+| Sprint #8 P3s resolved | 1 of 11 (#23 theme_color -- re-evaluated as correct) |
+| New features delivered | 3 (sounds, wake lock, vibration + PWA polish) |
+| New issues found | 6 (P2: #42, #43. P3: #44, #45, #46, #47) |
 | Active P1 count | **0** |
-| Active P2 count | 6 |
-| Active P3 count | 11 |
+| Active P2 count | 7 |
+| Active P3 count | 14 |
 
 ---
 
 ## Verdict
 
-Sprint #8 is a clean maintenance sprint that closes two long-standing P2 issues without introducing new problems. The nav fix resolves a bug that's been open for five sprints, and the "All" period fix prevents a label accuracy issue before it can bite a long-term user.
+Sprint #14 delivers the first genuinely phone-ready experience. The app was already a good browser-based timer (8.3). Now it's a good phone app (8.8). The gap between "website you visit" and "app you install" has been closed by sounds that feel right, a screen that stays on, vibration that works in your pocket, and a manifest that makes the install prompt credible.
 
-The score trajectory continues upward: 5.6 -> 6.6 -> 7.3 -> 7.7 -> 7.9 -> 8.2 -> 8.3. The +0.1 delta is the smallest increment yet, which is expected for a maintenance sprint with no new features. The app is now solidly above the 8.0 stop condition with zero P1 issues.
+The score trajectory: 5.6 -> 6.6 -> 7.3 -> 7.7 -> 7.9 -> 8.2 -> 8.3 -> **8.8**. The +0.5 delta is the largest since the Sprint #2 timer overhaul, driven almost entirely by Mobile Usability. The app has crossed the threshold where I'd actually install it on my phone and use it daily, which is the bar for a Pomodoro app.
 
-The app is a genuinely good daily Pomodoro tool. The timer is excellent (9.5), the dashboard is informative (8.0), the data model supports notes and tags for rich session logging. The remaining gaps are in the read-side experience (can't expand notes, can't filter by tag) and architectural polish (timer state persistence, session list mobile layout).
+The main risk is the iOS AudioContext issue (P2 #43). If sounds don't play on iPhone, the headline feature of this sprint is broken for a significant user segment. This should be verified on a real iOS device before considering the sprint fully landed.
 
-The biggest risk to continued score growth is diminishing returns from bug fixes. The remaining P2s (#30, #31, #35, #36, #37) are all feature additions, not bug fixes. The next score jump requires building something new, not just fixing what's broken.
-
-**Previous score: 8.2 / 10**
-**Current score: 8.3 / 10**
+**Previous score: 8.3 / 10**
+**Current score: 8.8 / 10**
 **P1 count: 0**
 
-**Path to 8.5:** Notes expand + tag filtering.
-**Path to 9.0:** + timer state persistence + complete/interrupt retry + session list mobile layout + first-time onboarding.
+**Path to 9.0:** iOS AudioContext fix + timer state persistence + sound toggle.
+**Path to 9.5:** + notes expand + tag filtering + first-time onboarding.

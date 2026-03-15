@@ -53,12 +53,13 @@ app/
 │   ├── settings.tsx # API key management for agent access
 │   └── sign-in.tsx  # Clerk sign-in
 ├── components/      # React components
-│   ├── Timer.tsx    # Core timer logic + UI + completion modal
+│   ├── Timer.tsx    # Core timer logic + UI + completion modal + wake lock
 │   ├── Stats.tsx    # Statistics cards
 │   ├── SessionList.tsx  # Session list with date groups + tags
 │   ├── AuthGate.tsx     # Clerk sign-in gate
 │   └── Providers.tsx    # Clerk + Convex providers
 └── lib/
+    ├── sounds.ts        # Web Audio completion sounds (singing bowl + chime) + vibration
     ├── useUserId.ts     # User ID hook (Clerk/dev)
     └── retryQueue.ts    # localStorage-based offline mutation retry
 

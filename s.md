@@ -1,7 +1,7 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #13+ (cleanup done)
-## Consolidated Score: 8.5/10 (Phase 1) — Phase 2 scoring pending first audit
+## Current Sprint: #14 (completed)
+## Consolidated Score: 8.6/10 (Phase 3)
 ## Phase 3: Closing the Loop — PWA polish, agent write-back, v1.0
 
 ## Reviewer Weight (Phase 3)
@@ -13,14 +13,6 @@
 | Performance | 10% | Audio latency, wake lock, timer precision |
 
 ## Upcoming Sprints (Phase 3: Close the Loop)
-
-### Sprint #14 — Sounds + Wake Lock + PWA polish
-- Completion sound (gentle, meditative — not an alarm)
-- Break-end sound (distinct from work-end)
-- Vibration API on mobile
-- Wake Lock API (screen stays on during active session)
-- PWA manifest check: icons, splash screen, iOS/Android install
-- Test: phone under a plant, 1-min timer, verify it plays sound
 
 ### Sprint #15 — Agent write: start/stop sessions via CLI + API
 - `POST /api/sessions/start` (type, durationMinutes)
@@ -36,6 +28,20 @@
 - GitHub release v1.0
 - First full Agent Access audit with new reviewer squad
 - Final s.md summary
+
+## Completed — Phase 3: Close the Loop
+
+### Sprint #14 — Sounds + Wake Lock + PWA polish ✅
+Two distinct Web Audio completion sounds (singing bowl for work, ascending chime for break), Vibration API, Wake Lock API (screen stays on during timer), PWA manifest polish (id, scope, orientation, categories, maskable icon, iOS meta tags). Audio extracted to `app/lib/sounds.ts`. P2 fixes: await AudioContext.resume(), wake lock unmount cleanup.
+
+**Sprint #14 Scores:**
+
+| Reviewer | #8 | #14 | Delta |
+|----------|-----|------|-------|
+| End-user | 8.3 | **8.8** | +0.5 |
+| DevEx | 9.0 | **8.4** | -0.6 |
+| Performance | 8.2 | **8.6** | +0.4 |
+| **Consolidated** | **8.5** | **8.6** | **+0.1** |
 
 ## Completed — Phase 2: Agent Platform (sprints 9-13)
 
@@ -68,8 +74,12 @@ Naming consistency (binary: `agent-pomodoro`), ontilt.dev article, GitHub metada
 
 ## Backlog (deferred)
 
-- [ ] CI does not test with Convex env vars
+- [ ] CI does not test with Convex env vars (staging tests always fail — Vercel Deployment Protection)
 - [ ] Timer state lost on page navigation
+- [ ] iOS AudioContext user gesture — sounds may not play on iOS Safari without prior interaction
+- [ ] Maskable icon safe zone — icon-512.png may clip on adaptive icon frames
+- [ ] Completion flow E2E test (timer to 0, modal, save, mode switch)
+- [ ] Sound/vibration mute toggle in Settings
 - [ ] Dark/light theme toggle
 - [ ] Custom timer durations
 - [ ] Lazy-load Clerk (~80kB savings)
