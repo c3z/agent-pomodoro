@@ -101,6 +101,27 @@ Scores 5 subcategories 1-10:
 
 Reads: `app/components/Timer.tsx`, `vite.config.ts`, `package.json`
 
+#### UAT Tester (Production)
+`review-uat` → `docs/reviews/uat-review.md`
+
+**Tests the live production deployment using browser automation.**
+
+Uses Playwright or browser tools against the STAGING or PRODUCTION URL to verify:
+- **Page loads** — does every route render without errors?
+- **Sign-in flow** — does the auth gate show? Does Clerk modal open?
+- **Timer interaction** — can you start, pause, reset the timer?
+- **Data persistence** — after completing a session, does it appear in history?
+- **Console errors** — are there any JS errors in the browser console?
+- **Network health** — do Convex WebSocket connections succeed?
+
+Process:
+1. Use `npx playwright test --config=playwright.config.ts` with STAGING_URL set to the deploy URL
+2. If smoke tests pass on staging → UAT PASS
+3. If ANY test fails → UAT FAIL, report errors with screenshots
+4. Also manually check browser console for Convex/Clerk errors by reading logs
+
+Writes: `docs/reviews/uat-review.md` with PASS/FAIL verdict and specific errors
+
 ### 6. TRIAGE
 - Consolidate all reviewer findings
 - Classify: P1 (blocker), P2 (should fix), P3 (nice to have)
