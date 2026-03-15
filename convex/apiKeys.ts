@@ -1,6 +1,13 @@
 import { v } from "convex/values";
 import { mutation, query, internalQuery, internalMutation } from "./_generated/server";
 
+async function verifyUserId(ctx: { auth: { getUserIdentity: () => Promise<any> } }, userId: string) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity && identity.subject !== userId) {
+    throw new Error("Access denied: userId does not match authenticated user");
+  }
+}
+
 export const create = mutation({
   args: {
     userId: v.string(),
@@ -9,6 +16,7 @@ export const create = mutation({
     keyPrefix: v.string(),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const existing = await ctx.db
       .query("apiKeys")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -30,6 +38,7 @@ export const create = mutation({
 export const listByUser = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const keys = await ctx.db
       .query("apiKeys")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -51,6 +60,7 @@ export const revoke = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const key = await ctx.db.get(args.keyId);
     if (!key || key.userId !== args.userId) {
       throw new Error("API key not found or access denied");

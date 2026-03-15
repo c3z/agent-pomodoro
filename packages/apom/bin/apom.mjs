@@ -18,7 +18,7 @@ function loadConfig() {
 }
 
 function saveConfig(config) {
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
 }
 
 function getApiKey() {

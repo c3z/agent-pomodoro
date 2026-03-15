@@ -1,5 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 
 async function hashApiKey(key: string): Promise<string> {
@@ -10,33 +11,29 @@ async function hashApiKey(key: string): Promise<string> {
     .join("");
 }
 
+// CORS: wildcard origin is intentional — REST API is designed for CLI/agent
+// access with Bearer token auth, not browser-session auth.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+} as const;
+
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-    },
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }
 
 function corsPreflightResponse() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-    },
-  });
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
 type AuthResult = { userId: string; keyId: string };
 
 async function authenticateRequest(
-  ctx: { runQuery: Function; runMutation: Function },
+  ctx: ActionCtx,
   request: Request
 ): Promise<AuthResult | Response> {
   const authHeader = request.headers.get("Authorization");
@@ -98,7 +95,7 @@ http.route({
     if (auth instanceof Response) return auth;
     const url = new URL(request.url);
     const days = parseInt(url.searchParams.get("days") ?? "7", 10);
-    const sinceDaysAgo = isNaN(days) || days < 1 ? 7 : Math.min(days, 3650);
+    const sinceDaysAgo = isNaN(days) || days < 1 ? 7 : Math.min(days, 365);
     const stats = await ctx.runQuery(api.sessions.stats, {
       userId: auth.userId,
       sinceDaysAgo,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUserId } from "~/lib/useUserId";
@@ -47,6 +47,12 @@ export default function Settings() {
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!revealedKey) return;
+    const timer = setTimeout(() => setRevealedKey(null), 60_000);
+    return () => clearTimeout(timer);
+  }, [revealedKey]);
+
   const handleCreate = async () => {
     if (!userId || !newKeyName.trim()) return;
     setCreating(true);
@@ -69,9 +75,9 @@ export default function Settings() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRevoke = async (keyId: string) => {
+  const handleRevoke = async (keyId: Parameters<typeof revokeKey>[0]["keyId"]) => {
     if (!userId) return;
-    await revokeKey({ keyId: keyId as any, userId });
+    await revokeKey({ keyId, userId });
   };
 
   const activeKeys = keys?.filter((k) => !k.revoked) ?? [];

@@ -1,5 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery } from "./_generated/server";
+
+async function verifyUserId(ctx: { auth: { getUserIdentity: () => Promise<any> } }, userId: string) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity && identity.subject !== userId) {
+    throw new Error("Access denied: userId does not match authenticated user");
+  }
+}
 
 export const start = mutation({
   args: {
@@ -12,6 +19,7 @@ export const start = mutation({
     durationMinutes: v.number(),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     if (args.durationMinutes <= 0 || args.durationMinutes > 120) {
       throw new Error("Duration must be between 1 and 120 minutes");
     }
@@ -34,6 +42,7 @@ export const complete = mutation({
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== args.userId) {
       throw new Error("Session not found or access denied");
@@ -53,6 +62,7 @@ export const interrupt = mutation({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== args.userId) {
       throw new Error("Session not found or access denied");
@@ -70,6 +80,7 @@ export const listByUser = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const limit = args.limit ?? 50;
     return await ctx.db
       .query("pomodoroSessions")
@@ -84,6 +95,7 @@ export const todayByUser = query({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const startTs = startOfDay.getTime();
@@ -104,7 +116,8 @@ export const stats = query({
     sinceDaysAgo: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const since = args.sinceDaysAgo ?? 7;
+    await verifyUserId(ctx, args.userId);
+    const since = Math.min(args.sinceDaysAgo ?? 7, 365);
     const sinceTs = Date.now() - since * 24 * 60 * 60 * 1000;
 
     const sessions = await ctx.db
@@ -175,6 +188,7 @@ export const agentSummary = query({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
     const since = 7;
     const sinceTs = Date.now() - since * 24 * 60 * 60 * 1000;
 
@@ -245,7 +259,7 @@ export const agentSummary = query({
   },
 });
 
-export const activeUserId = query({
+export const activeUserId = internalQuery({
   args: {},
   handler: async (ctx) => {
     const latest = await ctx.db
