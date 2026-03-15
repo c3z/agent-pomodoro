@@ -19,17 +19,17 @@ Used proactively during morning routines, evening reviews, or when c3z seems dis
 
 ### Quick check (last 7 days stats)
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:stats '{"userId": "c3z", "sinceDaysAgo": 7}'
+cd ~/P/agent-pomodoro && npx convex run sessions:stats '{"userId": "dev-user", "sinceDaysAgo": 7}'
 ```
 
 ### Today's sessions
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:todayByUser '{"userId": "c3z"}'
+cd ~/P/agent-pomodoro && npx convex run sessions:todayByUser '{"userId": "dev-user"}'
 ```
 
 ### Recent sessions
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:listByUser '{"userId": "c3z", "limit": 20}'
+cd ~/P/agent-pomodoro && npx convex run sessions:listByUser '{"userId": "dev-user", "limit": 20}'
 ```
 
 ## Interpretation Rules
@@ -72,7 +72,7 @@ Compare with weekly average.
 
 ## CLI one-liner for quick check
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:stats '{"userId": "c3z", "sinceDaysAgo": 7}' 2>/dev/null | python3 -c "
+cd ~/P/agent-pomodoro && npx convex run sessions:stats '{"userId": "dev-user", "sinceDaysAgo": 7}' 2>/dev/null | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 print(f'Streak: {d[\"currentStreak\"]}d | Focus: {d[\"totalFocusHours\"]}h/7d | Rate: {d[\"completionRate\"]}% | Last: {d[\"hoursSinceLastSession\"]}h ago')

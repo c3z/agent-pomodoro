@@ -1,152 +1,198 @@
-# Performance Review — Agent Pomodoro
+# Performance Review — Agent Pomodoro (Sprint #2)
 
 **Reviewer:** Performance
 **Date:** 2026-03-15
-**Files reviewed:** `app/components/Timer.tsx`, `vite.config.ts`, `package.json`, `app/app.css`, `app/routes/timer.tsx`, `app/components/Providers.tsx`, `convex/sessions.ts`
+**Previous score:** 5.4/10
+**Files reviewed:** `app/components/Timer.tsx`, `app/routes/timer.tsx`, `vite.config.ts`, `package.json`, `app/routes/layout.tsx`, `app/components/Providers.tsx`, `app/app.css`
+
+---
+
+## Sprint 2 Changes Evaluated
+
+- Wall-clock anchor (`endTimeRef` + `Date.now()`) — resolves previous P1-PERF-01
+- 250ms tick interval — resolves previous P1-PERF-01
+- `visibilitychange` handler recalculates on tab focus — resolves previous P1-PERF-02
+- Stable callback refs (`onCompleteRef`, `onInterruptRef`, `onStartRef`) — resolves previous P2-PERF-05, P2-PERF-06
+- `isPaused` state separate from `isRunning` — cleaner state machine
+- Web Audio API for completion sound — replaces broken base64 approach
+- try/catch on Convex mutations in `timer.tsx` — partially resolves previous P1-PERF-07
 
 ---
 
 ## Scores
 
-| # | Subcategory | Score | Notes |
-|---|-------------|-------|-------|
-| 1 | Timer Accuracy | 4/10 | `setInterval` drift, no wall-clock anchor |
-| 2 | Initial Load | 7/10 | Lean deps, but no code-splitting or font optimization |
-| 3 | Bundle Size | 8/10 | Minimal dependencies, nothing gratuitous |
-| 4 | State Management | 5/10 | Unnecessary re-render cascade from `handleComplete` in useEffect deps |
-| 5 | Offline Capability | 3/10 | Timer dies on network loss due to Convex/Clerk dependency at start |
+| # | Subcategory | Score | Prev | Delta | Notes |
+|---|-------------|-------|------|-------|-------|
+| 1 | Timer Accuracy | 8/10 | 4 | +4 | Wall-clock anchor + visibilitychange. Solid. |
+| 2 | Initial Load | 7/10 | 7 | 0 | No change. Still lean, still no font optimization. |
+| 3 | Bundle Size | 8/10 | 8 | 0 | No change. Dependencies unchanged. |
+| 4 | State Management | 6/10 | 5 | +1 | Ref pattern fixes callback churn, but new issues introduced. |
+| 5 | Offline Capability | 4/10 | 3 | +1 | try/catch added, but no retry queue or PWA. |
 
-**Overall: 5.4 / 10**
+**Overall: 6.6 / 10** (prev 5.4, delta +1.2)
 
 ---
 
-## 1. Timer Accuracy — 4/10
+## 1. Timer Accuracy — 8/10
 
-The timer uses `setInterval(fn, 1000)` with a simple `prev - 1` decrement (line 92-100 of `Timer.tsx`). This is the classic "drifting timer" anti-pattern.
+The wall-clock anchor is correctly implemented. `endTimeRef` stores the absolute end timestamp (line 244), and each tick computes remaining time via `Math.ceil((endTimeRef.current - Date.now()) / 1000)` (lines 128-131). This self-corrects on every tick regardless of JS event loop delays.
 
-**What goes wrong:**
-- `setInterval` does not guarantee exactly 1000ms. Each tick can be delayed by JS event loop blocking, garbage collection, or tab throttling.
-- Over a 25-minute pomodoro (1500 ticks), cumulative drift can reach 5-30 seconds depending on browser load.
-- When the browser tab is backgrounded, Chrome/Safari throttle `setInterval` to once per second *at best*, and sometimes once per minute. A 25-minute pomodoro running in a background tab will be wildly inaccurate.
-- There is no wall-clock reference. The timer never checks `Date.now()` to correct itself.
+The 250ms tick interval is a good choice — fast enough that the display never visually lags by more than 250ms, but not so fast that it wastes cycles. The `visibilitychange` handler (lines 190-203) correctly recalculates remaining time when the tab regains focus, fixing the background-tab problem.
 
-**P1 issues:**
-- **P1-PERF-01: Timer drifts under load.** Replace `setInterval` + decrement with a wall-clock approach: store `targetEndTime = Date.now() + secondsLeft * 1000` on start, then on each tick compute `secondsLeft = Math.max(0, Math.ceil((targetEndTime - Date.now()) / 1000))`. This self-corrects every tick.
-- **P1-PERF-02: Background tab throttling kills accuracy.** When the tab is backgrounded, browsers throttle timers aggressively. Use `document.visibilitychange` event to recalculate remaining time from the wall clock when the tab regains focus.
+**What's good:**
+- Wall-clock anchor eliminates cumulative drift entirely
+- `visibilitychange` ensures correct display after tab switch
+- Immediate first tick on line 146 prevents a 250ms delay on start
+- Pause correctly freezes the remaining time from the wall clock (lines 253-256)
+
+**Remaining concern:**
+- The 250ms interval means 4 state updates per second, each causing a full re-render of the Timer component. This is fine on desktop but worth monitoring on low-end mobile devices. A 1-second interval with wall-clock correction would be equally accurate for display purposes (the display only shows whole seconds anyway).
+
+**No P1 issues.** Previous P1-PERF-01 and P1-PERF-02 are resolved.
 
 ---
 
 ## 2. Initial Load — 7/10
 
-The dependency list is lean: React 19, React Router 7, Convex, Clerk, Tailwind 4. No heavy charting libraries, no animation frameworks, no moment.js. This is good.
+No changes in Sprint 2. The dependency list remains lean. SSR is enabled.
 
-**Concerns:**
-- JetBrains Mono and Inter are declared in the CSS theme but there is no visible `<link>` or `@font-face` with `font-display: swap`. If these load from Google Fonts or a CDN via the HTML template, they could block first paint.
-- React Router 7 uses server-side rendering by default, which should give a fast first contentful paint. Good.
-- No explicit code-splitting is visible. The timer, dashboard, and history routes appear to be in the same bundle. React Router 7 handles route-based splitting automatically via its file convention, so this is likely fine, but worth verifying with `npx vite-bundle-visualizer`.
-
-**P3 issues:**
-- **P3-PERF-03: Font loading strategy unverified.** Ensure `font-display: swap` or `optional` is set for custom fonts. If fonts are self-hosted, add `preload` hints. If not loaded at all yet (just declared in CSS), remove the declarations or add the actual font files.
+**Remaining concerns (unchanged from Sprint 1):**
+- JetBrains Mono and Inter are declared in CSS `@theme` (app.css lines 4-5) but no `@font-face` with `font-display: swap` is visible. If these fonts are not actually loaded, the declarations are harmless fallbacks. If they are loaded (e.g., via an HTML `<link>`), there could be a FOIT (flash of invisible text) blocking first paint.
+- No `preload` hints for critical resources.
 
 ---
 
 ## 3. Bundle Size — 8/10
 
-Production dependencies:
-- `react`, `react-dom` (~45kB gzipped) — unavoidable
-- `react-router` + `@react-router/node` + `@react-router/serve` — framework, required
-- `convex` (~30kB gzipped) — backend, required
-- `@clerk/clerk-react` + `@clerk/react-router` (~80kB gzipped) — auth, required but heavy
-- `isbot` (~2kB) — standard for SSR bot detection
+No changes in Sprint 2. The dependency list is identical. No new packages added. The Web Audio API is a browser built-in — zero bundle cost, good choice.
 
-No bloat. No lodash, no moment, no axios, no UI component library. This is about as lean as you can get with this stack.
-
-**Clerk is the heaviest single dependency** (~80kB gzipped). This is a known tradeoff. If bundle size becomes critical, Clerk could be lazy-loaded only for authenticated routes, but this is not a real problem today.
-
-**P3 issues:**
-- **P3-PERF-04: Consider lazy-loading Clerk.** The `Providers.tsx` already gracefully handles missing `CLERK_KEY`, but for production, Clerk JS is always bundled. A dynamic `import()` for `@clerk/clerk-react` would shave ~80kB off the initial chunk for unauthenticated visitors.
+Clerk remains the heaviest dependency (~80kB gzipped) but is architecturally required.
 
 ---
 
-## 4. State Management — 5/10
+## 4. State Management — 6/10
 
-The `Timer` component has a subtle re-render problem caused by the `handleComplete` callback and its dependency chain.
+The stable callback ref pattern (lines 93-98) correctly eliminates the previous interval teardown problem. The tick effect now depends only on `[isRunning]` (line 153), meaning the interval is created once when the timer starts and destroyed once when it stops. This is correct.
 
-**The issue (lines 58-105):**
+**New issues introduced:**
 
-```
-const handleComplete = useCallback(() => { ... }, [mode, completedPomodoros, onSessionComplete]);
+### Keyboard effect re-registers on every render (P1)
 
-useEffect(() => {
-  if (isRunning && secondsLeft > 0) {
-    intervalRef.current = setInterval(() => { ... }, 1000);
-  }
-  return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-}, [isRunning, handleComplete]);
-```
+The keyboard shortcut `useEffect` (lines 206-227) has **no dependency array**. This means:
+- It runs after every render
+- The 250ms tick causes a state update (`setSecondsLeft`) 4 times per second
+- Each state update re-renders the Timer component
+- Each re-render tears down the `keydown` listener and adds a new one
+- Result: ~4 `addEventListener`/`removeEventListener` cycles per second during countdown
 
-Every time `handleComplete` gets a new identity (because `completedPomodoros` changed, or `mode` changed), the `useEffect` tears down the interval and creates a new one. This happens at least once per completed pomodoro. But more importantly, if `onSessionComplete` is not stable (not wrapped in `useCallback` in the parent), this re-creates the interval on every parent render.
+This is wasteful. The effect closes over `isRunning` to decide between `pause()` and `start()`, but `start` and `pause` are also recreated each render. The fix: use refs for `isRunning` (or for the `start`/`pause` functions) and add `[]` as the dependency array.
 
-Looking at `timer.tsx` (the route), the callbacks are defined as inline arrow functions:
-```
-onSessionComplete={async () => { ... }}
-```
+### Completion detection is fragile (P2)
 
-This means every render of `TimerPage` creates new function references, which invalidates `handleComplete`, which re-creates the interval. During countdown, `setSecondsLeft` triggers a re-render of `TimerPage` (via the state update), but since the Timer component manages its own state and TimerPage doesn't depend on `secondsLeft`, React Router should not re-render TimerPage on every tick. So in practice, this is okay-ish, but the architecture is fragile.
+The completion flow uses two separate mechanisms:
+1. The tick effect (line 133-142) detects `remaining <= 0`, clears the interval, sets `isRunning = false`, plays sound, and sets `startedRef.current = false`
+2. A separate `useEffect` (lines 164-187) watches `[secondsLeft, isRunning, mode]` and fires when `secondsLeft === 0 && !isRunning && completedRef.current`
 
-**The bigger re-render problem:** Every second, `setSecondsLeft` triggers a full re-render of the Timer component. This re-renders the SVG progress ring, all buttons, the mode selector, and the pomodoro counter. For a simple timer, this is ~20 DOM elements re-evaluated per second. Not a performance crisis, but unnecessary.
+The `completedRef` flag is armed in `start()` (line 241) and consumed in the completion effect (line 167). There's also a dead effect at lines 156-161 that does nothing (empty body). This two-phase completion detection works but is hard to reason about. If React batches the state updates differently in a future version, or if `completedRef` gets out of sync, the completion callback could be missed or double-fired.
 
-**P2 issues:**
-- **P2-PERF-05: Unstable callback references from parent.** Wrap `onSessionComplete`, `onSessionStart`, `onSessionInterrupt` in `useCallback` in `timer.tsx`, or use `useRef` to hold latest callback (a common pattern to break the dependency chain).
-- **P2-PERF-06: Move `handleComplete` to a ref.** Store `handleComplete` in a ref so the interval effect doesn't depend on it. The interval callback reads from the ref, keeping the interval stable across renders:
-  ```ts
-  const handleCompleteRef = useRef(handleComplete);
-  handleCompleteRef.current = handleComplete;
-  // In useEffect: handleCompleteRef.current()
-  ```
+### AudioContext created per completion (P3)
+
+`playCompletionSound()` creates a new `AudioContext` on every call (line 33) and never calls `ctx.close()`. After the oscillators finish, the context stays allocated. Over many pomodoros, this leaks audio contexts. Most browsers limit the number of concurrent `AudioContext` instances (Chrome: 6). After 6 completed pomodoros, the sound could silently fail.
+
+### SVG re-render on every tick (P3)
+
+The progress ring SVG (lines 307-332) recalculates `strokeDashoffset` on every render. The SVG `transition-all duration-300` CSS class means the browser also animates the transition every 250ms. This creates overlapping CSS transitions — each tick starts a 300ms animation, but the next tick arrives 250ms later and starts a new one. The visual result is usually fine (smooth arc movement) but it's technically wasted GPU compositing work.
 
 ---
 
-## 5. Offline Capability — 3/10
+## 5. Offline Capability — 4/10
 
-The timer is a pure client-side countdown. In theory, it should work offline. In practice:
+Sprint 2 added try/catch around all three Convex mutations in `timer.tsx` (lines 27-29, 33-35, 43-45). Failed mutations now log a warning instead of throwing. The timer continues to function locally even if the backend is unreachable. This is a meaningful improvement — the timer no longer breaks on network failure.
 
-- **Convex mutations fire on start/complete/interrupt.** If the network is down when a session starts, `startSession` will fail. The `timer.tsx` route does `await startSession(...)` — if this throws, the error is unhandled (no try/catch). The timer still starts locally because `Timer.tsx` doesn't wait for the callback, but the session is never recorded.
-- **Convex mutations on completion will also fail offline.** The completed session is lost — no retry queue, no local storage fallback.
-- **Clerk authentication may block the entire app.** If the Clerk JS SDK cannot reach its servers, the auth state may never resolve, potentially leaving the user on a loading screen.
-- **No service worker.** No PWA manifest. The app cannot even load offline.
+**Remaining gaps:**
 
-For a pomodoro timer, offline is not a nice-to-have — it is core. You use a pomodoro timer to focus, which often means airplane mode or flaky cafe wifi.
-
-**P1 issues:**
-- **P1-PERF-07: Timer should function fully offline.** The `Timer` component itself is pure local state — good. But the integration in `timer.tsx` should gracefully handle failed mutations (try/catch + queue for retry). Consider storing sessions in `localStorage` and syncing to Convex when connectivity returns.
-
-**P2 issues:**
-- **P2-PERF-08: Add a service worker / PWA manifest.** A pomodoro app is a perfect PWA candidate. `vite-plugin-pwa` would add this with minimal config. Cache the app shell so it loads offline.
+- **No retry or local persistence.** When a `startSession` mutation fails, the session is simply lost. There's no localStorage fallback, no queue-and-retry. A user who does a focus session on a train with spotty wifi will have no record of it.
+- **No service worker / PWA.** The app cannot load at all without a network connection. For a pomodoro timer — an app you want to open instantly, possibly in airplane mode — this is a significant gap.
+- **Clerk dependency at app level.** If Clerk's CDN is unreachable, the auth provider may hang. The `Providers.tsx` gracefully handles missing `CLERK_KEY` (line 27-29) but not a Clerk SDK that loads but cannot reach its servers.
+- **visibilitychange handler has a minor offline issue.** Line 192 checks `endTimeRef.current > 0` but not `isRunning`. If the timer was paused (endTimeRef still holds a stale value), regaining focus could incorrectly update `secondsLeft`. However, since pausing also calculates remaining time (line 253-256), this is unlikely to cause visible bugs in practice — the stale endTimeRef just produces a negative remaining, which gets clamped to 0 by `Math.max(0, ...)`. Still, it's imprecise.
 
 ---
 
 ## Issue Summary
 
-| ID | Severity | Description |
-|----|----------|-------------|
-| P1-PERF-01 | P1 | Timer drift — replace setInterval decrement with wall-clock anchor |
-| P1-PERF-02 | P1 | Background tab throttling — use visibilitychange to recalculate |
-| P1-PERF-07 | P1 | Offline mutations fail silently — add error handling + local queue |
-| P2-PERF-05 | P2 | Unstable callback references cause interval teardown |
-| P2-PERF-06 | P2 | handleComplete in useEffect deps — use ref pattern |
-| P2-PERF-08 | P2 | No service worker / PWA — app cannot load offline |
-| P3-PERF-03 | P3 | Font loading strategy unverified |
-| P3-PERF-04 | P3 | Clerk could be lazy-loaded to reduce initial bundle |
+| ID | Severity | Description | Status |
+|----|----------|-------------|--------|
+| P1-PERF-01 | ~~P1~~ | ~~Timer drift — wall-clock anchor~~ | **RESOLVED** in Sprint 2 |
+| P1-PERF-02 | ~~P1~~ | ~~Background tab throttling — visibilitychange~~ | **RESOLVED** in Sprint 2 |
+| P1-PERF-07 | ~~P1~~ | ~~Offline mutations fail silently~~ | **PARTIAL** — try/catch added, no retry queue |
+| P2-PERF-05 | ~~P2~~ | ~~Unstable callback refs~~ | **RESOLVED** in Sprint 2 |
+| P2-PERF-06 | ~~P2~~ | ~~handleComplete in useEffect deps~~ | **RESOLVED** in Sprint 2 |
+| **P1-PERF-09** | **P1** | **Keyboard useEffect has no dependency array — re-registers listener ~4x/sec** | NEW |
+| **P2-PERF-10** | **P2** | **Completion detection via dual effects + completedRef is fragile** | NEW |
+| P2-PERF-08 | P2 | No service worker / PWA — app cannot load offline | OPEN (from Sprint 1) |
+| **P2-PERF-11** | **P2** | **No retry queue for failed mutations — sessions lost on network failure** | NEW |
+| **P3-PERF-12** | **P3** | **AudioContext leak — new context per completion, never closed** | NEW |
+| **P3-PERF-13** | **P3** | **SVG progress ring: overlapping CSS transitions (300ms anim, 250ms tick)** | NEW |
+| P3-PERF-03 | P3 | Font loading strategy unverified | OPEN (from Sprint 1) |
+| P3-PERF-04 | P3 | Clerk could be lazy-loaded | OPEN (from Sprint 1) |
 
-**P1 count: 3** | P2 count: 3 | P3 count: 2
+**P1 count: 1** | P2 count: 3 | P3 count: 4
+
+---
+
+## P1 Detail: P1-PERF-09 — Keyboard Effect Missing Dependency Array
+
+**File:** `app/components/Timer.tsx` lines 206-227
+
+The `useEffect` for keyboard shortcuts has no dependency array:
+
+```ts
+useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => { ... };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+}); // <-- no dependency array
+```
+
+Without a dependency array, this effect runs after **every render**. During countdown, the Timer re-renders 4 times per second (250ms tick interval). Each re-render:
+1. Removes the previous `keydown` listener
+2. Creates a new closure capturing current `isRunning`
+3. Adds the new listener
+
+This is 8 DOM API calls per second (add + remove) for the entire duration of a pomodoro — ~12,000 unnecessary listener operations per 25-minute session.
+
+**Fix:** Use refs for the handler dependencies and add `[]` as the dependency array:
+
+```ts
+const isRunningRef = useRef(isRunning);
+isRunningRef.current = isRunning;
+
+useEffect(() => {
+  const handleKey = (e: KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (isRunningRef.current) pause(); else start();
+    } else if (e.code === "Escape") {
+      e.preventDefault();
+      stop();
+    }
+  };
+  window.addEventListener("keydown", handleKey);
+  return () => window.removeEventListener("keydown", handleKey);
+}, []);
+```
+
+Note: `start`, `pause`, `stop` would also need to be stabilized (via refs or `useCallback` with stable deps) for this to work correctly. Alternatively, move the dispatch logic into refs as well.
 
 ---
 
 ## Verdict
 
-The timer works for the happy path: foreground tab, stable network, short sessions. But a pomodoro timer that drifts in background tabs and cannot survive a network blip is fundamentally unreliable for its core use case. The P1s around timer accuracy and offline resilience need to be addressed before this can be trusted for real focus sessions.
+Sprint 2 made the right calls. The two most critical P1s from Sprint 1 (timer drift and background-tab accuracy) are properly fixed. The wall-clock anchor implementation is clean and correct. The stable callback ref pattern eliminates the interval teardown churn. try/catch on mutations prevents crashes on network failure.
 
-Bundle size and initial load are solid — the stack choices are lean and appropriate. State management has some fragility but nothing that causes visible bugs today.
+The score moves from 5.4 to 6.6 — a solid improvement driven entirely by timer accuracy gains (+4 points in that subcategory).
 
-**Fix the wall-clock anchor first. Everything else follows.**
+The new P1 (keyboard effect churn) is less severe than the old P1s — it wastes CPU cycles but doesn't produce incorrect behavior. Still, it should be fixed in the next sprint. The completion detection complexity (P2-PERF-10) and missing PWA support (P2-PERF-08) are the next priorities after that.
+
+**Previous blockers resolved: 2/3.** Timer accuracy is no longer a concern. Offline resilience is partially addressed but still incomplete (no retry, no PWA).

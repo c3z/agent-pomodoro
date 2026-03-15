@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 type TimerMode = "work" | "break" | "longBreak";
 
@@ -28,6 +28,45 @@ const MODE_COLORS: Record<TimerMode, string> = {
   longBreak: "text-blue-400",
 };
 
+function playCompletionSound() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 830;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.8);
+    // Second tone
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.frequency.value = 1046;
+    osc2.type = "sine";
+    gain2.gain.setValueAtTime(0, ctx.currentTime + 0.15);
+    gain2.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.2);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
+    osc2.start(ctx.currentTime + 0.15);
+    osc2.stop(ctx.currentTime + 1.0);
+  } catch {}
+}
+
+function sendNotification(mode: TimerMode) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  const title = mode === "work" ? "Focus session complete!" : "Break is over!";
+  const body =
+    mode === "work"
+      ? "Time for a break."
+      : "Ready to focus again.";
+  new Notification(title, { body, icon: "/favicon.ico" });
+}
+
 interface TimerProps {
   onSessionStart?: (type: TimerMode, durationMinutes: number) => void;
   onSessionComplete?: (type: TimerMode) => void;
@@ -42,9 +81,21 @@ export function Timer({
   const [mode, setMode] = useState<TimerMode>("work");
   const [secondsLeft, setSecondsLeft] = useState(DEFAULT_CONFIG.work * 60);
   const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [completedPomodoros, setCompletedPomodoros] = useState(0);
+
+  // Wall-clock anchor: when the timer should end
+  const endTimeRef = useRef<number>(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
+
+  // Stable refs for callbacks to avoid useEffect dependency issues
+  const onCompleteRef = useRef(onSessionComplete);
+  onCompleteRef.current = onSessionComplete;
+  const onInterruptRef = useRef(onSessionInterrupt);
+  onInterruptRef.current = onSessionInterrupt;
+  const onStartRef = useRef(onSessionStart);
+  onStartRef.current = onSessionStart;
 
   const totalSeconds = DEFAULT_CONFIG[mode] * 60;
   const progress = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
@@ -55,72 +106,165 @@ export function Timer({
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleComplete = useCallback(() => {
-    setIsRunning(false);
-    if (intervalRef.current) clearInterval(intervalRef.current);
+  // Update tab title
+  useEffect(() => {
+    if (isRunning) {
+      document.title = `${formatTime(secondsLeft)} — ${MODE_LABELS[mode]}`;
+    } else if (isPaused) {
+      document.title = `⏸ ${formatTime(secondsLeft)} — ${MODE_LABELS[mode]}`;
+    } else {
+      document.title = "Agent Pomodoro";
+    }
+    return () => {
+      document.title = "Agent Pomodoro";
+    };
+  }, [secondsLeft, isRunning, isPaused, mode]);
+
+  // Wall-clock tick
+  useEffect(() => {
+    if (!isRunning) return;
+
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((endTimeRef.current - Date.now()) / 1000)
+      );
+      setSecondsLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(intervalRef.current!);
+        intervalRef.current = null;
+        setIsRunning(false);
+        setIsPaused(false);
+        startedRef.current = false;
+
+        playCompletionSound();
+        // handleComplete logic inline to avoid dependency issues
+      }
+    };
+
+    intervalRef.current = setInterval(tick, 250);
+    tick(); // immediate first tick
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isRunning]);
+
+  // Handle completion as a separate effect watching secondsLeft hitting 0 while running
+  const completedRef = useRef(false);
+  useEffect(() => {
+    if (secondsLeft === 0 && !completedRef.current && startedRef.current === false) {
+      // Timer just completed — this fires after the tick sets isRunning=false
+    }
+  }, [secondsLeft]);
+
+  // Detect completion: secondsLeft hit 0 and timer stopped
+  useEffect(() => {
+    if (secondsLeft > 0 || isRunning) return;
+    if (!completedRef.current) return;
+    completedRef.current = false;
+
+    sendNotification(mode);
+    onCompleteRef.current?.(mode);
 
     if (mode === "work") {
-      const newCount = completedPomodoros + 1;
-      setCompletedPomodoros(newCount);
-      onSessionComplete?.(mode);
-
-      // Auto-switch to break
-      const nextMode =
-        newCount % DEFAULT_CONFIG.longBreakInterval === 0
-          ? "longBreak"
-          : "break";
-      setMode(nextMode);
-      setSecondsLeft(DEFAULT_CONFIG[nextMode] * 60);
+      setCompletedPomodoros((prev) => {
+        const newCount = prev + 1;
+        const nextMode =
+          newCount % DEFAULT_CONFIG.longBreakInterval === 0
+            ? "longBreak"
+            : "break";
+        setMode(nextMode);
+        setSecondsLeft(DEFAULT_CONFIG[nextMode] * 60);
+        return newCount;
+      });
     } else {
-      onSessionComplete?.(mode);
       setMode("work");
       setSecondsLeft(DEFAULT_CONFIG.work * 60);
     }
-    startedRef.current = false;
+  }, [secondsLeft, isRunning, mode]);
 
-    // Audio notification
-    try {
-      const audio = new Audio(
-        "data:audio/wav;base64,UklGRl9vT19teleWQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ=="
-      );
-      audio.play().catch(() => {});
-    } catch {}
-  }, [mode, completedPomodoros, onSessionComplete]);
-
+  // Visibilitychange: recalculate when tab regains focus
   useEffect(() => {
-    if (isRunning && secondsLeft > 0) {
-      intervalRef.current = setInterval(() => {
-        setSecondsLeft((prev) => {
-          if (prev <= 1) {
-            handleComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && endTimeRef.current > 0) {
+        const remaining = Math.max(
+          0,
+          Math.ceil((endTimeRef.current - Date.now()) / 1000)
+        );
+        setSecondsLeft(remaining);
+      }
     };
-  }, [isRunning, handleComplete]);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      )
+        return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (isRunning) {
+          pause();
+        } else {
+          start();
+        }
+      } else if (e.code === "Escape") {
+        e.preventDefault();
+        stop();
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  });
 
   const start = () => {
+    // Request notification permission on first start
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
+      Notification.requestPermission();
+    }
+
     if (!startedRef.current) {
       startedRef.current = true;
-      onSessionStart?.(mode, DEFAULT_CONFIG[mode]);
+      completedRef.current = true; // arm completion detection
+      onStartRef.current?.(mode, DEFAULT_CONFIG[mode]);
     }
+    endTimeRef.current = Date.now() + secondsLeft * 1000;
     setIsRunning(true);
+    setIsPaused(false);
   };
 
   const pause = () => {
     setIsRunning(false);
+    setIsPaused(true);
+    // Freeze remaining time from wall clock
+    const remaining = Math.max(
+      0,
+      Math.ceil((endTimeRef.current - Date.now()) / 1000)
+    );
+    setSecondsLeft(remaining);
   };
 
   const stop = () => {
     setIsRunning(false);
+    setIsPaused(false);
+    endTimeRef.current = 0;
     if (startedRef.current) {
-      onSessionInterrupt?.();
+      onInterruptRef.current?.();
       startedRef.current = false;
+      completedRef.current = false;
     }
     setSecondsLeft(DEFAULT_CONFIG[mode] * 60);
   };
@@ -128,10 +272,12 @@ export function Timer({
   const switchMode = (newMode: TimerMode) => {
     if (isRunning) return;
     if (startedRef.current) {
-      onSessionInterrupt?.();
+      onInterruptRef.current?.();
       startedRef.current = false;
+      completedRef.current = false;
     }
     setMode(newMode);
+    setIsPaused(false);
     setSecondsLeft(DEFAULT_CONFIG[newMode] * 60);
   };
 
@@ -158,7 +304,10 @@ export function Timer({
       {/* Timer Display */}
       <div className="relative">
         {/* Progress Ring */}
-        <svg className="w-64 h-64 -rotate-90" viewBox="0 0 120 120">
+        <svg
+          className="w-48 h-48 sm:w-64 sm:h-64 -rotate-90"
+          viewBox="0 0 120 120"
+        >
           <circle
             cx="60"
             cy="60"
@@ -178,11 +327,13 @@ export function Timer({
             strokeDasharray={`${2 * Math.PI * 54}`}
             strokeDashoffset={`${2 * Math.PI * 54 * (1 - progress / 100)}`}
             strokeLinecap="round"
-            className={`${MODE_COLORS[mode]} transition-all duration-1000`}
+            className={`${MODE_COLORS[mode]} transition-all duration-300`}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-5xl font-mono font-bold ${MODE_COLORS[mode]}`}>
+          <span
+            className={`text-4xl sm:text-5xl font-mono font-bold ${MODE_COLORS[mode]}`}
+          >
             {formatTime(secondsLeft)}
           </span>
           <span className="text-gray-500 text-sm font-mono mt-1">
@@ -199,7 +350,7 @@ export function Timer({
             className="px-8 py-3 bg-pomored hover:bg-pomored-dark text-white rounded-xl font-bold text-lg transition-colors"
             data-testid="start-button"
           >
-            {startedRef.current ? "Resume" : "Start"}
+            {isPaused ? "Resume" : "Start"}
           </button>
         ) : (
           <button
@@ -217,6 +368,11 @@ export function Timer({
         >
           Reset
         </button>
+      </div>
+
+      {/* Keyboard hint */}
+      <div className="text-gray-600 text-xs font-mono">
+        Space = start/pause · Esc = reset
       </div>
 
       {/* Pomodoro Counter */}
