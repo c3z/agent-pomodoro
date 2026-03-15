@@ -17,3 +17,4 @@ convex/_generated/
 
 # Vercel
 .vercel/
+.vercel

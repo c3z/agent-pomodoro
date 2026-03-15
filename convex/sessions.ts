@@ -104,13 +104,11 @@ export const stats = query({
     const workSessions = sessions.filter((s) => s.type === "work");
     const completed = workSessions.filter((s) => s.completed);
     const interrupted = workSessions.filter((s) => s.interrupted);
-
     const totalMinutes = completed.reduce(
       (sum, s) => sum + s.durationMinutes,
       0
     );
 
-    // Calculate streak (consecutive days with completed work sessions)
     const daySet = new Set<string>();
     completed.forEach((s) => {
       const d = new Date(s.startedAt);
@@ -130,13 +128,10 @@ export const stats = query({
       }
     }
 
-    // Last session timestamp
     const lastSession =
       workSessions.length > 0
         ? Math.max(...workSessions.map((s) => s.startedAt))
         : null;
-
-    // Hours since last session
     const hoursSinceLastSession = lastSession
       ? (Date.now() - lastSession) / (1000 * 60 * 60)
       : null;
@@ -157,8 +152,7 @@ export const stats = query({
       hoursSinceLastSession: hoursSinceLastSession
         ? Math.round(hoursSinceLastSession * 10) / 10
         : null,
-      avgSessionsPerDay:
-        Math.round((workSessions.length / since) * 10) / 10,
+      avgSessionsPerDay: Math.round((workSessions.length / since) * 10) / 10,
     };
   },
 });

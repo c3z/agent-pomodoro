@@ -1,9 +1,11 @@
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { Stats } from "~/components/Stats";
 import { SessionList } from "~/components/SessionList";
 import { NavLink } from "react-router";
+import { useUserId } from "~/lib/useUserId";
 
-// Placeholder data for dev mode (without Convex)
-const PLACEHOLDER_STATS = {
+const EMPTY_STATS = {
   period: "7d",
   totalWorkSessions: 0,
   completedSessions: 0,
@@ -18,6 +20,16 @@ const PLACEHOLDER_STATS = {
 };
 
 export default function Home() {
+  const userId = useUserId();
+  const statsData = useQuery(
+    api.sessions.stats,
+    userId ? { userId } : "skip"
+  );
+  const todaySessions = useQuery(
+    api.sessions.todayByUser,
+    userId ? { userId } : "skip"
+  );
+
   return (
     <div className="space-y-8">
       <div className="text-center space-y-2">
@@ -29,7 +41,7 @@ export default function Home() {
         </p>
       </div>
 
-      <Stats data={PLACEHOLDER_STATS} />
+      <Stats data={statsData ?? EMPTY_STATS} />
 
       <div className="text-center">
         <NavLink
@@ -45,7 +57,7 @@ export default function Home() {
         <h2 className="text-lg font-mono font-bold text-gray-400 mb-4">
           Today's Sessions
         </h2>
-        <SessionList sessions={[]} />
+        <SessionList sessions={todaySessions ?? []} />
       </div>
     </div>
   );
