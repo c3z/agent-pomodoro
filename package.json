@@ -6,7 +6,10 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "test": "playwright test",
+    "test:smoke": "playwright test e2e/smoke.spec.ts",
+    "test:report": "playwright show-report"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.3",
