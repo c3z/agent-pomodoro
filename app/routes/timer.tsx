@@ -31,7 +31,7 @@ export default function TimerPage() {
         onSessionComplete={async () => {
           if (sessionIdRef.current) {
             try {
-              await completeSession({ sessionId: sessionIdRef.current });
+              await completeSession({ sessionId: sessionIdRef.current, userId: userId! });
             } catch (e) {
               console.warn("[pomodoro] Failed to save session complete:", e);
             }
@@ -41,7 +41,7 @@ export default function TimerPage() {
         onSessionInterrupt={async () => {
           if (sessionIdRef.current) {
             try {
-              await interruptSession({ sessionId: sessionIdRef.current });
+              await interruptSession({ sessionId: sessionIdRef.current, userId: userId! });
             } catch (e) {
               console.warn("[pomodoro] Failed to save interruption:", e);
             }

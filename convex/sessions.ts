@@ -12,6 +12,9 @@ export const start = mutation({
     durationMinutes: v.number(),
   },
   handler: async (ctx, args) => {
+    if (args.durationMinutes <= 0 || args.durationMinutes > 120) {
+      throw new Error("Duration must be between 1 and 120 minutes");
+    }
     return await ctx.db.insert("pomodoroSessions", {
       userId: args.userId,
       type: args.type,
@@ -26,10 +29,15 @@ export const start = mutation({
 export const complete = mutation({
   args: {
     sessionId: v.id("pomodoroSessions"),
+    userId: v.string(),
     notes: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== args.userId) {
+      throw new Error("Session not found or access denied");
+    }
     await ctx.db.patch(args.sessionId, {
       completed: true,
       completedAt: Date.now(),
@@ -42,8 +50,13 @@ export const complete = mutation({
 export const interrupt = mutation({
   args: {
     sessionId: v.id("pomodoroSessions"),
+    userId: v.string(),
   },
   handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== args.userId) {
+      throw new Error("Session not found or access denied");
+    }
     await ctx.db.patch(args.sessionId, {
       interrupted: true,
       completedAt: Date.now(),
