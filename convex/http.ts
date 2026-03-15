@@ -55,8 +55,8 @@ async function authenticateRequest(
     return jsonResponse({ error: "Invalid or revoked API key" }, 401);
   }
 
-  // Fire-and-forget: update lastUsedAt
-  void ctx.runMutation(internal.apiKeys.touchLastUsed, { keyId: result.keyId });
+  // Fire-and-forget: lastUsedAt is best-effort, errors are non-critical
+  ctx.runMutation(internal.apiKeys.touchLastUsed, { keyId: result.keyId }).catch(() => {});
 
   return result as AuthResult;
 }

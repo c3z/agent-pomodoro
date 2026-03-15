@@ -46,6 +46,7 @@ export default function Settings() {
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!revealedKey) return;
@@ -56,6 +57,7 @@ export default function Settings() {
   const handleCreate = async () => {
     if (!userId || !newKeyName.trim()) return;
     setCreating(true);
+    setError(null);
     try {
       const plainKey = await generateApiKey();
       const keyHash = await hashKey(plainKey);
@@ -63,6 +65,8 @@ export default function Settings() {
       await createKey({ userId, name: newKeyName.trim(), keyHash, keyPrefix });
       setRevealedKey(plainKey);
       setNewKeyName("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create API key");
     } finally {
       setCreating(false);
     }
@@ -115,6 +119,12 @@ export default function Settings() {
           >
             Dismiss
           </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+          <p className="text-red-400 font-mono text-sm">{error}</p>
         </div>
       )}
 
