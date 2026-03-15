@@ -32,7 +32,7 @@ The human needs to:
 
 ```bash
 # Install globally
-npm install -g apom
+npm install -g agent-pomodoro
 
 # Set API key
 apom config set-key apom_xxxx...

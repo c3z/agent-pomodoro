@@ -70,7 +70,7 @@ convex/
 ├── auth.config.ts   # Clerk JWT config
 └── tsconfig.json    # Convex-specific TS config
 
-packages/apom/       # CLI tool (npm install -g apom)
+packages/apom/       # CLI tool (npm install -g agent-pomodoro)
 ├── bin/apom.mjs     # Zero-dependency CLI (Node 18+)
 └── package.json     # npm package config
 
