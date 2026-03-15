@@ -17,6 +17,7 @@ export default defineConfig({
     ? undefined
     : {
         command: "npm run dev",
+        env: { VITE_CLERK_PUBLISHABLE_KEY: "" },
         port: 5173,
         reuseExistingServer: true,
         timeout: 30_000,

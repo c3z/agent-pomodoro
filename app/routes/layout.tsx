@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from "react-router";
 import { Providers } from "~/components/Providers";
+import { AuthGate, AuthNav } from "~/components/AuthGate";
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -32,7 +33,7 @@ function Nav() {
             <span className="sm:hidden">Log</span>
           </NavLink>
         </div>
-        <div id="clerk-user-button" />
+        <AuthNav />
       </div>
     </nav>
   );
@@ -44,7 +45,9 @@ export default function Layout() {
       <div className="min-h-screen">
         <Nav />
         <main className="max-w-4xl mx-auto px-4 py-8">
-          <Outlet />
+          <AuthGate>
+            <Outlet />
+          </AuthGate>
         </main>
       </div>
     </Providers>
