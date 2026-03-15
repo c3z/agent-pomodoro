@@ -17,33 +17,33 @@ Used proactively during morning routines, evening reviews, or when c3z seems dis
 
 ## How to Check (preferred: `apom` CLI)
 
-If `apom` is installed (`npm install -g apom`) and configured with an API key:
+API key is stored in sec. Always load it before running apom:
 
 ### Quick status (recommended)
 ```bash
-apom status
+APOM_API_KEY=$(sec get APOM_API_KEY) apom status
 ```
 
 ### Stats for period
 ```bash
-apom stats 7        # last 7 days
-apom stats 30       # last 30 days
-apom stats 7 --json # machine-readable
+APOM_API_KEY=$(sec get APOM_API_KEY) apom stats 7        # last 7 days
+APOM_API_KEY=$(sec get APOM_API_KEY) apom stats 30       # last 30 days
+APOM_API_KEY=$(sec get APOM_API_KEY) apom stats 7 --json # machine-readable
 ```
 
 ### Today's sessions
 ```bash
-apom sessions today
+APOM_API_KEY=$(sec get APOM_API_KEY) apom sessions today
 ```
 
 ### Recent sessions
 ```bash
-apom sessions 20
+APOM_API_KEY=$(sec get APOM_API_KEY) apom sessions 20
 ```
 
 ### LLM-friendly help
 ```bash
-apom --help-llm    # full JSON schema for agents
+apom --help-llm    # full JSON schema for agents (no key needed)
 ```
 
 ## Fallback: Direct Convex queries
