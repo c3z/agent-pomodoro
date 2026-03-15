@@ -1,9 +1,6 @@
 import { useUser } from "@clerk/clerk-react";
 
-const HAS_CLERK = !!(
-  typeof window !== "undefined" &&
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-);
+const HAS_CLERK = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 function useClerkUserId(): string | null {
   const { user, isLoaded } = useUser();

@@ -1,23 +1,9 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Stats } from "~/components/Stats";
-import { SessionList } from "~/components/SessionList";
 import { NavLink } from "react-router";
+import { SessionList } from "~/components/SessionList";
+import { Stats } from "~/components/Stats";
 import { useUserId } from "~/lib/useUserId";
-
-const EMPTY_STATS = {
-  period: "7d",
-  totalWorkSessions: 0,
-  completedSessions: 0,
-  interruptedSessions: 0,
-  completionRate: 0,
-  totalFocusMinutes: 0,
-  totalFocusHours: 0,
-  currentStreak: 0,
-  lastSessionAt: null,
-  hoursSinceLastSession: null,
-  avgSessionsPerDay: 0,
-};
 
 export default function Home() {
   const userId = useUserId();

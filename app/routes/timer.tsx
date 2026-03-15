@@ -18,35 +18,32 @@ export default function TimerPage() {
         onSessionStart={async (type, duration) => {
           if (!userId) return;
           try {
-            const id = await startSession({
+            sessionIdRef.current = await startSession({
               userId,
               type,
               durationMinutes: duration,
             });
-            sessionIdRef.current = id;
           } catch (e) {
             console.warn("[pomodoro] Failed to save session start:", e);
           }
         }}
         onSessionComplete={async () => {
-          if (sessionIdRef.current) {
-            try {
-              await completeSession({ sessionId: sessionIdRef.current });
-            } catch (e) {
-              console.warn("[pomodoro] Failed to save session complete:", e);
-            }
-            sessionIdRef.current = null;
+          if (!sessionIdRef.current) return;
+          try {
+            await completeSession({ sessionId: sessionIdRef.current });
+          } catch (e) {
+            console.warn("[pomodoro] Failed to save session complete:", e);
           }
+          sessionIdRef.current = null;
         }}
         onSessionInterrupt={async () => {
-          if (sessionIdRef.current) {
-            try {
-              await interruptSession({ sessionId: sessionIdRef.current });
-            } catch (e) {
-              console.warn("[pomodoro] Failed to save interruption:", e);
-            }
-            sessionIdRef.current = null;
+          if (!sessionIdRef.current) return;
+          try {
+            await interruptSession({ sessionId: sessionIdRef.current });
+          } catch (e) {
+            console.warn("[pomodoro] Failed to save interruption:", e);
           }
+          sessionIdRef.current = null;
         }}
       />
     </div>

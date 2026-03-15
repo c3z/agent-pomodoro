@@ -28,35 +28,47 @@ const MODE_COLORS: Record<TimerMode, string> = {
   longBreak: "text-blue-400",
 };
 
-function playCompletionSound() {
+function createTone(
+  ctx: AudioContext,
+  frequency: number,
+  startTime: number,
+  stopTime: number,
+  gainSetup: (gain: GainNode, time: number) => void,
+): void {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = frequency;
+  osc.type = "sine";
+  gainSetup(gain, ctx.currentTime);
+  osc.start(startTime);
+  osc.stop(stopTime);
+}
+
+function playCompletionSound(): void {
   try {
     const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 830;
-    osc.type = "sine";
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.8);
-    // Second tone
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.frequency.value = 1046;
-    osc2.type = "sine";
-    gain2.gain.setValueAtTime(0, ctx.currentTime + 0.15);
-    gain2.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.2);
-    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
-    osc2.start(ctx.currentTime + 0.15);
-    osc2.stop(ctx.currentTime + 1.0);
+    const t = ctx.currentTime;
+    createTone(ctx, 830, t, t + 0.8, (gain, now) => {
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    });
+    createTone(ctx, 1046, t + 0.15, t + 1.0, (gain, now) => {
+      gain.gain.setValueAtTime(0, now + 0.15);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+    });
   } catch {}
 }
 
-function sendNotification(mode: TimerMode) {
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+function sendNotification(mode: TimerMode): void {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   const title = mode === "work" ? "Focus session complete!" : "Break is over!";
@@ -99,12 +111,6 @@ export function Timer({
 
   const totalSeconds = DEFAULT_CONFIG[mode] * 60;
   const progress = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
 
   // Update tab title
   useEffect(() => {
@@ -202,9 +208,9 @@ export function Timer({
   // Keyboard shortcuts — use refs to avoid re-registering on every render
   const isRunningRef = useRef(isRunning);
   isRunningRef.current = isRunning;
-  const startRef = useRef<() => void>();
-  const pauseRef = useRef<() => void>();
-  const stopRef = useRef<() => void>();
+  const startRef = useRef<(() => void) | undefined>(undefined);
+  const pauseRef = useRef<(() => void) | undefined>(undefined);
+  const stopRef = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {

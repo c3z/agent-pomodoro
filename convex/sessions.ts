@@ -1,6 +1,50 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+function dateKey(date: Date): string {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+interface SessionWithTimestamp {
+  startedAt: number;
+  completed: boolean;
+}
+
+function calculateStreak(
+  completedSessions: SessionWithTimestamp[],
+  lookbackDays: number,
+): number {
+  const daySet = new Set<string>();
+  for (const s of completedSessions) {
+    daySet.add(dateKey(new Date(s.startedAt)));
+  }
+
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < lookbackDays; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    if (daySet.has(dateKey(d))) {
+      streak++;
+    } else if (i > 0) {
+      break;
+    }
+  }
+  return streak;
+}
+
+function lastSessionTimestamp(
+  sessions: SessionWithTimestamp[],
+): number | null {
+  if (sessions.length === 0) return null;
+  return Math.max(...sessions.map((s) => s.startedAt));
+}
+
+function hoursSince(timestamp: number | null): number | null {
+  if (timestamp === null) return null;
+  return Math.round(((Date.now() - timestamp) / (1000 * 60 * 60)) * 10) / 10;
+}
+
 export const start = mutation({
   args: {
     userId: v.string(),
@@ -109,32 +153,7 @@ export const stats = query({
       0
     );
 
-    const daySet = new Set<string>();
-    completed.forEach((s) => {
-      const d = new Date(s.startedAt);
-      daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
-    });
-
-    let streak = 0;
-    const today = new Date();
-    for (let i = 0; i < since; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (daySet.has(key)) {
-        streak++;
-      } else if (i > 0) {
-        break;
-      }
-    }
-
-    const lastSession =
-      workSessions.length > 0
-        ? Math.max(...workSessions.map((s) => s.startedAt))
-        : null;
-    const hoursSinceLastSession = lastSession
-      ? (Date.now() - lastSession) / (1000 * 60 * 60)
-      : null;
+    const lastSession = lastSessionTimestamp(workSessions);
 
     return {
       period: `${since}d`,
@@ -147,11 +166,9 @@ export const stats = query({
           : 0,
       totalFocusMinutes: totalMinutes,
       totalFocusHours: Math.round((totalMinutes / 60) * 10) / 10,
-      currentStreak: streak,
+      currentStreak: calculateStreak(completed, since),
       lastSessionAt: lastSession,
-      hoursSinceLastSession: hoursSinceLastSession
-        ? Math.round(hoursSinceLastSession * 10) / 10
-        : null,
+      hoursSinceLastSession: hoursSince(lastSession),
       avgSessionsPerDay: Math.round((workSessions.length / since) * 10) / 10,
     };
   },
@@ -191,42 +208,15 @@ export const agentSummary = query({
     );
     const todayCompleted = todaySessions.filter((s) => s.completed).length;
 
-    const daySet = new Set<string>();
-    completed.forEach((s) => {
-      const d = new Date(s.startedAt);
-      daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
-    });
-    let streak = 0;
-    const today = new Date();
-    for (let i = 0; i < since; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (daySet.has(key)) streak++;
-      else if (i > 0) break;
-    }
+    const streak = calculateStreak(completed, since);
+    const lastHours = hoursSince(lastSessionTimestamp(workSessions));
 
-    const lastSession =
-      workSessions.length > 0
-        ? Math.max(...workSessions.map((s) => s.startedAt))
-        : null;
-    const hoursSince = lastSession
-      ? Math.round(((Date.now() - lastSession) / (1000 * 60 * 60)) * 10) / 10
-      : null;
-
-    const lines = [];
-    lines.push(
-      `Today: ${todayCompleted} pomodoro${todayCompleted !== 1 ? "s" : ""} completed`
-    );
-    lines.push(
-      `Week: ${completed.length}/${workSessions.length} sessions (${completionRate}% completion), ${totalHours}h focus`
-    );
-    lines.push(`Streak: ${streak} day${streak !== 1 ? "s" : ""}`);
-    if (hoursSince !== null) {
-      lines.push(`Last session: ${hoursSince}h ago`);
-    } else {
-      lines.push("Last session: never");
-    }
+    const lines = [
+      `Today: ${todayCompleted} pomodoro${todayCompleted !== 1 ? "s" : ""} completed`,
+      `Week: ${completed.length}/${workSessions.length} sessions (${completionRate}% completion), ${totalHours}h focus`,
+      `Streak: ${streak} day${streak !== 1 ? "s" : ""}`,
+      lastHours !== null ? `Last session: ${lastHours}h ago` : "Last session: never",
+    ];
 
     return lines.join("\n");
   },
