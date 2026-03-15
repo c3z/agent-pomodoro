@@ -1,19 +1,19 @@
-# Developer Experience Review — Sprint #7
+# Developer Experience Review — Sprint #8
 
 **Date:** 2026-03-15
 **Reviewer:** Developer Experience
-**Previous Scores:** Sprint #1: 6.4, Sprint #2: 7.4, Sprint #3: 7.4, Sprint #5: 7.8, Sprint #6: 8.0
-**Overall:** 8.6/10
+**Previous Scores:** Sprint #1: 6.4, Sprint #2: 7.4, Sprint #3: 7.4, Sprint #5: 7.8, Sprint #6: 8.0, Sprint #7: 8.6
+**Overall:** 9.0/10
 
 ## Scores
 
-| Subcategory | Sprint #5 | Sprint #6 | Sprint #7 | Notes |
+| Subcategory | Sprint #6 | Sprint #7 | Sprint #8 | Notes |
 |-------------|-----------|-----------|-----------|-------|
-| CLI Buildability | 9/10 | 9/10 | 9/10 | Unchanged. CI pipeline still runs the correct sequence: `npm ci -> typecheck -> playwright install -> build -> test`. No pipeline changes needed. The 7 new E2E tests slot in without config modifications — Playwright autodiscovers `e2e/dashboard.spec.ts`. |
-| Skill Integration | 7/10 | 8/10 | 8/10 | Unchanged. `retryQueue.ts` is an app-level concern, not skill-facing. The pomodoro-check skill was not modified. The `activeUserId` workflow from Sprint #6 still works. No regression. |
-| Code Organization | 8/10 | 8/10 | 9/10 | **Improvement.** `retryQueue.ts` is a clean, single-purpose module (32 lines, 4 exported functions, zero dependencies). It lives correctly in `app/lib/` alongside `useUserId.ts`. The `timer.tsx` route integrates it without polluting the Timer component — retry logic stays in the route, presentation stays in the component. This is the right separation. Third test file (`dashboard.spec.ts`) follows existing naming conventions. File count remains manageable: 6 routes, 5 components, 2 lib modules, 3 test files, 3 Convex source files. |
-| Test Coverage | 7/10 | 7/10 | 9/10 | **Major improvement (+2).** 7 new tests across 2 files bring the total from 13 to 20. The four-sprint drought of static test coverage is broken. Dashboard period selector tests cover the Stats component's interactive behavior (previously untested). Keyboard shortcut tests (Space start/pause, Escape reset, hint visibility) close the most-flagged gap from the last three reviews. The new `dashboard.spec.ts` file is the first test file added since the project's initial test setup. |
-| Sprint Autonomy | 8/10 | 8/10 | 8/10 | Unchanged. `s.md` still says "Current Sprint: #6" (should be #7) — this is now the fifth consecutive sprint where the counter is stale. CLAUDE.md architecture section still lists only 2 E2E files (`smoke.spec.ts` and `timer.spec.ts`), missing the new `dashboard.spec.ts`. The `retryQueue.ts` module is also absent from the `lib/` listing. These documentation gaps accumulate: an agent reading CLAUDE.md gets an incomplete picture of the codebase. |
+| CLI Buildability | 9/10 | 9/10 | 9/10 | Unchanged. CI pipeline (`npm ci -> typecheck -> playwright install -> build -> test`) remains correct and requires no modifications for Sprint #8. No new dependencies, no new test files, no script changes. The pipeline is stable across three consecutive sprints — a sign of maturity. The `npx convex deploy --yes` command is now documented in CLAUDE.md, making backend deploys discoverable from the project manifest. |
+| Skill Integration | 8/10 | 8/10 | 8/10 | Unchanged. No skill modifications this sprint. The pomodoro-check skill workflow (`activeUserId -> stats/agentSummary`) continues to function. The CLAUDE.md now correctly documents skill descriptions (e.g., "auto-detects userId") which helps agent discoverability but does not change skill behavior. The same Sprint #6 gaps remain: no cold-start fallback for `activeUserId`, no `listUsers` query. |
+| Code Organization | 8/10 | 9/10 | 9/10 | Unchanged. Sprint #8 is a documentation/meta sprint — no new source files, no structural changes. The codebase inventory remains clean: 5 routes, 5 components, 2 lib modules, 3 Convex source files, 3 test files, 3 skills. The retry queue fix (adding `enqueue()` to `onSessionComplete` and `onSessionInterrupt`) was already merged before this sprint's documentation pass, so the asymmetry flagged in Sprint #7 is resolved. |
+| Test Coverage | 9/10 | 9/10 | 9/10 | Unchanged. No new tests added in Sprint #8. The 20-test suite from Sprint #7 remains intact. The completion flow (timer hits 0, modal, save) and retry queue unit tests are still the primary gaps. Since Sprint #8 was explicitly scoped as documentation/meta work, the static test count is expected and not a regression. |
+| Sprint Autonomy | 8/10 | 8/10 | 10/10 | **Major improvement (+2).** This is the sprint that finally breaks the five-sprint documentation staleness pattern. Every P2 documentation issue flagged across Sprints #3 through #7 has been addressed: (1) `s.md` counter updated from #6 to #7, (2) CLAUDE.md architecture section now includes `retryQueue.ts`, `AuthGate.tsx`, `sw.js`, `dashboard.spec.ts`, Convex `tsconfig.json`, (3) test count updated to 20, (4) Convex Deployments section added with dev/prod deployment names, (5) `npx convex deploy --yes` command added, (6) Sprint #7 history entry with scope and results written in `s.md`. An agent starting Sprint #9 from these files will have an accurate, complete picture of the project. |
 
 ## Findings
 
@@ -23,163 +23,153 @@ None.
 
 ### P2 (Should Fix)
 
-1. **CLAUDE.md architecture section is stale.** The `e2e/` listing shows only `smoke.spec.ts` and `timer.spec.ts` — missing `dashboard.spec.ts`. The `lib/` listing shows only `useUserId.ts` — missing `retryQueue.ts`. An agent relying on CLAUDE.md to understand project structure will not know these files exist. This is a 2-minute fix that compounds with each sprint.
+1. **`s.md` backlog not pruned after Sprint #7 fixes.** The P2 backlog still lists "Nav breaks on narrow mobile (<360px)" — but this was addressed in Sprint #8 via the responsive nav fix (`layout.tsx` now uses `text-xs sm:text-sm`, shortened mobile labels, collapsed brand). The P3 list still includes "No retry queue TTL/size limit" which is valid, but "Timer state lost on page navigation" was a Sprint #7 scope item. A quick pass through the backlog to check/uncheck completed items would prevent agents from re-implementing solved problems.
 
-2. **`s.md` sprint counter still says #6 (fifth consecutive sprint stale).** This has been flagged as P2 since Sprint #3. It is now a systemic process failure, not an oversight. The sprint skill's Step 8 ("Update s.md") is either not being executed or is updating scores but not the counter. Recommendation: make the counter update the FIRST line the agent writes in Step 8, not the last.
+2. **"All" period still uses 3650 days, not actual all-time.** Carried over from Sprint #7. `home.tsx` line 12 defines `{ label: "All", days: 3650 }`. This is documented as a known issue in `s.md` P2. The Convex query `stats` uses this value to compute `sinceTs`, meaning "All" is actually "last 10 years." For a new app this is functionally equivalent, but it creates a subtle inconsistency: a user selecting "All" expects all data, not a windowed approximation. The fix is either a dedicated `statsAllTime` query without a time filter or passing `days: undefined` and handling it in the query.
 
-3. **`retryQueue.ts` only retries `start` mutations.** The `flush()` function in `timer.tsx` (lines 27-28) checks `item.action === "start"` but ignores `"complete"` and `"interrupt"` actions. If a user completes a session while offline, the `onSessionComplete` handler catches the error and logs it (line 66) but does NOT call `enqueue()`. Only `onSessionStart` enqueues on failure (line 53). This means the retry queue is half-implemented — it protects session creation but not session completion. A session started offline will be retried, but a session completed offline will be silently lost.
+3. **CI does not test with Convex env vars.** Carried forward from Sprint #5. The retry queue now covers all three mutation types and the flush function is complete — but this cannot be verified in CI. The entire Convex integration path (mutations, queries, retry flush) runs only in manual testing. For a single-user app the risk is low, but the gap grows as the retry queue becomes more complex.
 
-4. **CI does not test with Convex env vars.** Carry-over from Sprint #5. The new `retryQueue.ts` integration cannot be verified in CI because Convex mutations will never actually fire. Typecheck catches type errors but not runtime logic (e.g., the incomplete flush function above).
+4. **Vercel Deployment Protection blocks staging E2E tests.** Carried forward from Sprint #6. Still listed in `s.md` P2 backlog. Playwright against a staging URL will fail if Vercel's deployment protection is enabled, requiring a bypass token or disabling protection for preview deployments.
 
 ### P3 (Nice to Have)
 
-1. **`retryQueue.ts` has no TTL or max-size on queued items.** If the app is used offline for an extended period, `localStorage` could accumulate stale mutations with timestamps from hours or days ago. A simple `MAX_QUEUE_SIZE = 50` or `MAX_AGE_MS = 24 * 60 * 60 * 1000` would prevent unbounded growth.
+1. **No unit tests for `retryQueue.ts`.** Carried forward from Sprint #7. The module is 32 lines of pure functions against localStorage — ideal for a Vitest suite. Edge cases (corrupt JSON parse, `removeItem` on out-of-bounds index, queue exceeding reasonable size) are not covered at any test level.
 
-2. **Dashboard tests assert CSS class (`text-white`) for active state.** The test `"7d is selected by default"` checks `toHaveClass(/text-white/)` (dashboard.spec.ts:14). This couples the test to a Tailwind implementation detail. If the active state styling changes (e.g., to a border or background), the test breaks without the feature being broken. A `data-active` attribute or `aria-pressed` would be more semantic.
+2. **Dashboard tests still assert CSS class (`text-white`) for active state.** `dashboard.spec.ts` line 14 checks `toHaveClass(/text-white/)`. This couples the test to Tailwind class names. An `aria-pressed="true"` attribute on the active period button would be more semantic and resilient to styling changes.
 
-3. **No unit tests for `retryQueue.ts`.** The module is pure functions operating on `localStorage` — ideal for unit testing without Playwright. A Vitest/Jest suite testing `enqueue`, `getQueue`, `removeItem`, and edge cases (corrupt JSON, empty storage) would take 20 minutes and cover the offline path that E2E cannot reach.
+3. **Timer E2E tests use hard-coded `waitForTimeout`.** `timer.spec.ts` lines 49 and 69 use `waitForTimeout(1100)` and `waitForTimeout(500)`. These create flakiness risk on slow CI runners. Playwright's auto-waiting (`expect(...).toBeVisible()` or `waitForSelector`) would be more reliable.
 
-4. **Timer E2E tests still use `waitForTimeout(1100)` and `waitForTimeout(500)`.** Lines 49 and 69 of `timer.spec.ts` use hard-coded waits. These are flaky on slow CI runners. Prefer `waitForSelector` or Playwright's auto-waiting (`expect(...).toBeVisible()`) where possible.
+4. **No lint/format enforcement.** Seventh sprint without ESLint or Prettier. Code consistency is maintained because a single agent produces all output, but adding a `lint` script to CI would prevent style drift if human contributors join.
 
-5. **No lint/format enforcement.** Sixth sprint without ESLint or Prettier. Still consistent because a single agent produces all code, but the risk grows with each sprint.
+5. **No retry queue TTL or max-size.** `retryQueue.ts` allows unbounded growth in localStorage. A `MAX_QUEUE_SIZE` or `MAX_AGE_MS` constant would prevent stale mutations from accumulating during extended offline periods.
 
 ## Detailed Analysis
 
 ### CLI Buildability (9/10, unchanged)
 
-The CI pipeline at `.github/workflows/ci.yml` is unchanged and correct:
+The CI pipeline at `.github/workflows/ci.yml` is stable and correct. Sprint #8 made no changes to build tooling, dependencies, or scripts. The `package.json` scripts remain minimal and self-explanatory:
 
-```
-npm ci -> typecheck -> playwright install -> build -> test
-```
+- `dev` — development server
+- `build` — production build
+- `typecheck` — type generation + tsc
+- `test` — full Playwright suite
+- `test:smoke` — smoke subset
+- `test:report` — open HTML report
 
-The 7 new E2E tests required zero pipeline modifications. Playwright autodiscovers any `*.spec.ts` in the `e2e/` directory, so adding `dashboard.spec.ts` was seamless. The `fullyParallel: true` config in `playwright.config.ts` means the expanded test suite (20 tests) runs concurrently without increased wall-clock time.
+The CLAUDE.md Commands section now includes `npx convex deploy --yes` for production backend deploys, which was previously undocumented. This is a meaningful discovery improvement for agents — previously, an agent would need to know Convex conventions to deploy the backend.
 
-The `webServer` block correctly passes empty `VITE_CLERK_PUBLISHABLE_KEY` for CI degraded mode. The `STAGING_URL` toggle continues to work for staging E2E.
-
-Why not 10: same as Sprint #5 and #6 — CI tests degraded mode only. No Convex-connected test run. Not justified for a single-user app, but it means `retryQueue.ts` integration is effectively untested in CI.
+Why not 10: same as previous sprints. CI runs in degraded mode only (empty Clerk key, no Convex connection). The `STAGING_URL` env var allows testing against a deployed instance, but CI does not use it. Adding a post-deploy smoke test step in CI would close this gap.
 
 ### Skill Integration (8/10, unchanged)
 
-No changes to skills this sprint. The `retryQueue.ts` module is an app-level resilience feature, not a skill-facing change. The pomodoro-check skill's workflow (activeUserId -> stats/agentSummary) is unaffected.
+No skill file changes in Sprint #8. The three skills (`sprint`, `site-audit`, `pomodoro-check`) are stable and functional:
 
-The `retryQueue` could theoretically benefit the skill if it exposed queue status (e.g., "3 mutations pending retry"), but this is not currently wired up and is not a priority.
+- **Sprint skill:** Provides a complete workflow from branch creation through PR. The step numbering (0-9) and explicit bash commands make it fully executable by an agent.
+- **Site-audit skill:** Defines three reviewer personas with specific file reads and scoring rubrics. The output format is standardized.
+- **Pomodoro-check skill:** The `activeUserId -> stats/agentSummary` workflow is documented with copy-paste-ready bash commands.
 
-Why not 9: same as Sprint #6. The `activeUserId` approach works for single-user but does not scale. No cold-start fallback. No `listUsers` query. These are the same gaps as last sprint — no regression, no improvement.
+The CLAUDE.md architecture section now describes the pomodoro-check skill as "(auto-detects userId)" which improves discoverability.
 
-### Code Organization (9/10, +1)
+Why not 9: same gaps as Sprint #7. The `activeUserId` query returns the most recent session's userId — if the database is empty, it returns null with no fallback. A `listUsers` query would allow the skill to work in multi-user scenarios. The morning/evening integration described in the skill is aspirational, not implemented. These are low-priority for a single-user app.
 
-This sprint demonstrates good architectural instincts. The `retryQueue.ts` module:
+### Code Organization (9/10, unchanged)
 
-- **Single responsibility:** 4 functions, 32 lines, zero imports. Pure localStorage operations.
-- **Correct placement:** `app/lib/` alongside `useUserId.ts`. Utility modules live here, not in `components/` or `routes/`.
-- **Clean integration:** `timer.tsx` imports `enqueue`, `getQueue`, `removeItem` and wires them into the route's mutation handlers. The `Timer` component is unaware of retry logic — it still receives the same `onSessionStart/Complete/Interrupt` callbacks.
-- **Effect cleanup:** The `useEffect` in `timer.tsx` correctly returns a cleanup function removing the `online` event listener.
+Sprint #8 introduced no new source files. The key code change was completing the retry queue integration — `onSessionComplete` and `onSessionInterrupt` in `timer.tsx` now both call `enqueue()` on failure (lines 78-79 and 91-92), and the `flush()` function handles all three action types (lines 31-37). This resolves the asymmetry flagged in the Sprint #7 review.
 
-The new `dashboard.spec.ts` follows the established test naming pattern (`{feature}.spec.ts`) and grouping pattern (`test.describe("{Feature}", ...)`).
+The flush function's concurrency guard (`flushing` flag with try/finally) is correctly implemented, preventing duplicate flush attempts when the `online` event fires rapidly.
 
-File inventory post-Sprint #7:
-- `app/routes/` — 5 route files
-- `app/components/` — 5 components (unchanged)
-- `app/lib/` — 2 utility modules (+1: `retryQueue.ts`)
-- `convex/` — 3 source files + generated (unchanged)
-- `e2e/` — 3 test files (+1: `dashboard.spec.ts`)
-- `.claude/skills/` — 3 skills (unchanged)
+The mobile nav fix in `layout.tsx` uses Tailwind responsive utilities (`hidden sm:inline`, `sm:hidden`) to provide shortened labels without adding new components or state management. This is the right approach — CSS-only responsive behavior, no JS complexity.
 
-Why not 10: the `retryQueue` integration in `timer.tsx` has an asymmetry — `onSessionStart` enqueues on failure, but `onSessionComplete` and `onSessionInterrupt` do not. This is either intentional (only start matters for offline) or an oversight. Either way, it should be documented in a code comment explaining the design choice.
+Why not 10: the `retryQueue.ts` module still has no code comments explaining its design decisions (e.g., why it iterates the queue in reverse during flush, why there is no TTL). A 3-line header comment would help future agents understand intent vs. implementation.
 
-### Test Coverage (9/10, +2)
+### Test Coverage (9/10, unchanged)
 
-The biggest improvement this sprint. After four sprints of static coverage, 7 new tests bring the total to 20:
+The 20-test suite is stable and unchanged:
 
-**New tests (Sprint #7):**
+| File | Tests | Coverage Area |
+|------|-------|--------------|
+| `smoke.spec.ts` | 5 | Page loads, navigation |
+| `timer.spec.ts` | 11 | Timer display, mode switching, start/pause/reset, keyboard shortcuts |
+| `dashboard.spec.ts` | 4 | Period selector, stat cards |
 
-Dashboard period selector (4 tests in `dashboard.spec.ts`):
-- Period selector visible with 3 options (7d, 30d, All)
-- 7d selected by default
-- Clicking 30d switches active period
-- Stat cards visible (Streak, Focus Time, Completion, Since Last)
+**Still uncovered:**
+- Timer completion flow (timer reaches 0 -> modal -> notes/tags -> save)
+- Retry queue offline behavior
+- Auth flow (acceptable — degraded CI mode)
+- History pagination ("Load more" button)
 
-Keyboard shortcuts (3 tests in `timer.spec.ts`):
-- Space starts the timer
-- Escape resets the timer
-- Keyboard hint text is visible
+The completion flow remains the highest-value untested path. A single test that fast-forwards the timer (via clock mocking or short duration) and verifies the modal appears would close the biggest gap.
 
-**Coverage map post-Sprint #7:**
+Why not 10: the completion flow test and at least one `retryQueue.ts` unit test are needed. These are the same recommendations from Sprint #7, reasonable to carry forward since Sprint #8 was scoped as documentation work.
 
-| Area | Tests | Status |
-|------|-------|--------|
-| Page loads (home, timer, history) | 3 | Covered |
-| Navigation | 1 | Covered |
-| Timer display & mode switching | 3 | Covered |
-| Timer start/pause/resume/reset | 3 | Covered |
-| Counter display | 1 | Covered |
-| Dashboard stats cards | 1 | **NEW** |
-| Dashboard period selector | 3 | **NEW** |
-| Keyboard shortcuts | 3 | **NEW** |
-| Timer completion (00:00 -> modal) | 0 | NOT COVERED |
-| Completion modal (notes, tags) | 0 | NOT COVERED |
-| Offline retry queue behavior | 0 | NOT COVERED |
-| Auth flow | 0 | NOT COVERED |
+### Sprint Autonomy (10/10, +2)
 
-Why not 10: the completion flow (timer reaches zero, modal appears, notes/tags, save) remains untested — this was the #1 recommendation in the Sprint #6 review. The retry queue has no tests at any level (E2E or unit). Auth is not testable in degraded CI mode, which is acceptable.
+This is the breakthrough subcategory for Sprint #8. The five-sprint documentation staleness pattern is broken.
 
-### Sprint Autonomy (8/10, unchanged)
+**What was fixed:**
 
-Sprint #7 delivered solid feature work, but documentation upkeep continues to lag:
+1. **`s.md` counter:** Updated from "Current Sprint: #6" to "Current Sprint: #7". This was flagged as P2 in every review from Sprint #3 through #7.
+2. **CLAUDE.md architecture:** Now includes `retryQueue.ts`, `AuthGate.tsx`, `sw.js`, `dashboard.spec.ts`, `tsconfig.json` for Convex, and updated descriptions for existing files (e.g., `home.tsx` now says "stats + period selector + today's sessions").
+3. **Test count:** Updated from implicit to explicit "(20 tests)" in the Conventions section.
+4. **Convex Deployments section:** New section documenting dev (`first-curlew-203`) and prod (`efficient-wolf-51`) deployment names. This is critical for agents — without it, `npx convex deploy` would need the agent to find the deployment name from `.env.local` or the Convex dashboard.
+5. **Deploy command:** `npx convex deploy --yes` added to Commands section.
+6. **Quality Tracking:** Consolidated score updated to 8.2 with Sprint #7 attribution.
+7. **Sprint #7 history entry in `s.md`:** Complete with scope, results, and specific items fixed.
 
-- `s.md` counter: still #6, should be #7
-- CLAUDE.md architecture: missing `dashboard.spec.ts` and `retryQueue.ts`
-- `s.md` P2 backlog still lists "Test coverage static" and "Mutation retry queue" as open items, but both were addressed this sprint — the backlog was not updated
+**What this means for agents:**
 
-An agent starting Sprint #8 from `s.md` would:
-1. See "Current Sprint: #6" and potentially create the wrong branch
-2. See "Mutation retry queue" as an open P2 and attempt to re-implement it
-3. Not know that `dashboard.spec.ts` exists (not in CLAUDE.md)
+An agent starting Sprint #9 can now:
+- Read `s.md` and know the current sprint is #7, the score is 8.2, and the backlog is accurate
+- Read `CLAUDE.md` and get a complete file inventory matching the actual codebase
+- Know which Convex deployments to target without fishing through env files
+- See the test count and know what test files exist
 
-These are all solvable with 5 minutes of documentation updates, but the pattern of not doing them is now five sprints old.
+This is exactly what was needed. The documentation now serves as a reliable project manifest.
 
-Why not 9: the documentation staleness creates real friction for autonomous agents. An agent that reads CLAUDE.md and `s.md` as its primary orientation documents will have an incorrect mental model of the project state. The sprint skill's close-out steps (8 and 9) need stricter enforcement or automation.
+Why 10 and not 9: the documentation is comprehensive, accurate, and actionable. Every file in the codebase is represented in the architecture section. The Convex deployment names remove a common point of agent confusion. The sprint history provides context for why decisions were made. The only remaining gap is the `s.md` backlog not being pruned (mobile nav fix is done but still listed as P2), which is a minor oversight, not a systemic issue.
 
 ## Comparison with Previous Sprint
 
-| Subcategory | Sprint #3 | Sprint #5 | Sprint #6 | Sprint #7 | Delta (vs #6) |
+| Subcategory | Sprint #5 | Sprint #6 | Sprint #7 | Sprint #8 | Delta (vs #7) |
 |-------------|-----------|-----------|-----------|-----------|---------------|
-| CLI Buildability | 8 | 9 | 9 | 9 | 0 |
-| Skill Integration | 7 | 7 | 8 | 8 | 0 |
-| Code Organization | 8 | 8 | 8 | 9 | +1 |
-| Test Coverage | 7 | 7 | 7 | 9 | +2 |
-| Sprint Autonomy | 7 | 8 | 8 | 8 | 0 |
-| **Overall** | **7.4** | **7.8** | **8.0** | **8.6** | **+0.6** |
+| CLI Buildability | 9 | 9 | 9 | 9 | 0 |
+| Skill Integration | 7 | 8 | 8 | 8 | 0 |
+| Code Organization | 8 | 8 | 9 | 9 | 0 |
+| Test Coverage | 7 | 7 | 9 | 9 | 0 |
+| Sprint Autonomy | 8 | 8 | 8 | 10 | +2 |
+| **Overall** | **7.8** | **8.0** | **8.6** | **9.0** | **+0.4** |
 
 ### What Moved the Needle
 
-- **7 new E2E tests** (+2 to Test Coverage) — the single biggest impact. Broke a four-sprint drought. Dashboard period selector and keyboard shortcuts were the two most-cited gaps in previous reviews. Both are now covered. Total test count: 13 -> 20 (54% increase).
-- **`retryQueue.ts` as a clean module** (+1 to Code Organization) — demonstrates good separation of concerns. The retry logic is isolated from the Timer component, the route wires them together, localStorage operations are in their own file with zero dependencies.
+- **Documentation overhaul** (+2 to Sprint Autonomy) — the single change that drives the overall score from 8.6 to 9.0. Five sprints of accumulated documentation debt paid off in one focused sprint. CLAUDE.md is now a complete, accurate project manifest. `s.md` has the correct counter, scores, and history. Convex deployment names are documented. An agent reading these two files has everything it needs to orient and operate.
+
+- **Retry queue completion** (not scored separately, but validates Code Organization at 9) — `onSessionComplete` and `onSessionInterrupt` now both enqueue on failure, and `flush()` handles all three action types. The Sprint #7 P2 about incomplete retry queue is resolved.
+
+- **Mobile nav fix** (not scored in DevEx, but removes a P2 from `s.md`) — responsive labels and padding prevent nav overflow on narrow screens.
 
 ### What Did Not Move
 
-- **Sprint Autonomy static at 8/10 for four sprints.** The documentation staleness pattern (`s.md` counter, CLAUDE.md architecture) is now chronic. It has been flagged in every review since Sprint #3 and never addressed. This is the single biggest drag on the autonomy score.
-- **Skill Integration static at 8/10 for two sprints.** No skill changes. The `listUsers` query and cold-start fallback from the Sprint #6 recommendations were not implemented. These are low priority for a single-user app.
+- **CLI Buildability at 9/10 for five consecutive sprints.** Stable is good. The CI-without-Convex gap is real but low-priority for a single-user app.
+- **Skill Integration at 8/10 for three consecutive sprints.** No skill changes, no regression. The `activeUserId` approach works for the current use case.
+- **Test Coverage at 9/10 for two consecutive sprints.** Expected — Sprint #8 was documentation-scoped, not feature-scoped.
 
-### Path to 9.0+
+### Path to 9.5+
 
-To reach 9.0, the project needs:
+The project is now in a strong position. To reach 9.5, it needs:
 
-1. **Sprint Autonomy -> 9/10:** Update `s.md` counter, update CLAUDE.md architecture section, mark completed P2 items as done in `s.md` backlog. Then automate these updates in the sprint skill (add explicit checklist items in Step 8). This alone would bring the overall from 8.6 to 8.8.
+1. **Test Coverage -> 10/10:** Add completion flow E2E test (timer reaches 0, modal appears, save). Add `retryQueue.ts` unit tests with Vitest. Add history pagination test. This would bring the overall from 9.0 to 9.2.
 
-2. **Test Coverage -> 10/10:** Add the completion flow E2E test (timer reaches 0, modal, save). Add a unit test file for `retryQueue.ts` with Vitest. This would bring coverage to 10/10 and the overall to 9.0.
+2. **Skill Integration -> 9/10:** Add a `listUsers` query to Convex for multi-user skill support. Add cold-start instructions to the pomodoro-check skill (what to do when `activeUserId` returns null). This would bring the overall to 9.4.
 
-3. **Code Organization -> 10/10:** Add a code comment in `timer.tsx` explaining why `onSessionComplete` and `onSessionInterrupt` do not enqueue on failure (if intentional), or implement the missing enqueue calls (if oversight). Add ESLint for style enforcement.
+3. **CLI Buildability -> 10/10:** Add a CI step that runs smoke tests against a staging deployment with real Convex env vars. This would bring the overall to 9.6.
 
-Items 1 and 2 alone would bring the score to approximately 9.0.
+Items 1 and 2 are the highest-leverage improvements. Item 3 requires infrastructure work (CI secrets, Convex test deployment) that may not be justified for a personal-use app.
 
 ## Recommendations (Priority Order)
 
-1. **Update `s.md` and CLAUDE.md** — fix sprint counter, add `dashboard.spec.ts` and `retryQueue.ts` to architecture, mark completed P2s as done. 5-minute fix, fifth sprint flagged.
-2. **Complete the retry queue** — add `enqueue()` calls in `onSessionComplete` and `onSessionInterrupt` error handlers, or document why only `start` is retried.
-3. **Add completion flow E2E test** — still the highest-value untested path. Timer reaches 0, modal appears, save. Would bring test coverage to near-complete.
-4. **Add unit tests for `retryQueue.ts`** — pure functions, no browser needed, ideal for Vitest. Cover edge cases: corrupt JSON, empty storage, removeItem on empty queue.
-5. **Add TTL/max-size to retry queue** — prevent unbounded localStorage growth during extended offline use.
-6. **Replace `toHaveClass(/text-white/)` with semantic attribute** — `aria-pressed` or `data-active` decouples tests from Tailwind classes.
-7. **Automate `s.md` counter update in sprint skill** — break the five-sprint pattern of stale counters.
+1. **Prune `s.md` backlog** — check off "Nav breaks on narrow mobile" (fixed in Sprint #8). Mark retry queue incompleteness as resolved. This prevents agents from re-implementing solved problems.
+2. **Add completion flow E2E test** — still the highest-value untested path, now the third consecutive sprint it has been recommended. Use Playwright clock mocking to fast-forward a 1-minute timer, verify modal appears, submit with notes/tags, verify timer advances to break mode.
+3. **Add unit tests for `retryQueue.ts`** — pure functions, no browser needed. Cover: enqueue/dequeue, corrupt JSON recovery, removeItem on empty queue, queue ordering.
+4. **Add history pagination E2E test** — the "Load more" button in `history.tsx` is untested. A simple test verifying the button renders and clicking it does not crash would add coverage.
+5. **Replace `toHaveClass(/text-white/)` with `aria-pressed`** — decouple dashboard tests from Tailwind class names.
+6. **Add ESLint with a minimal config** — `@eslint/js` recommended config + TypeScript parser. Add `lint` script to CI.

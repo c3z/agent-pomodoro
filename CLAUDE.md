@@ -34,6 +34,9 @@ npx vercel --prod --yes
 # Convex dev (backend)
 npx convex dev
 
+# Convex prod deploy
+npx convex deploy --yes
+
 # Type check
 npm run typecheck
 ```
@@ -44,31 +47,40 @@ npm run typecheck
 app/
 ├── routes/          # React Router file routes
 │   ├── layout.tsx   # Nav + Providers wrapper
-│   ├── home.tsx     # Dashboard (stats + today's sessions)
-│   ├── timer.tsx    # Pomodoro timer
-│   ├── history.tsx  # Session history
+│   ├── home.tsx     # Dashboard (stats + period selector + today's sessions)
+│   ├── timer.tsx    # Pomodoro timer + retry queue integration
+│   ├── history.tsx  # Session history with pagination
 │   └── sign-in.tsx  # Clerk sign-in
 ├── components/      # React components
-│   ├── Timer.tsx    # Core timer logic + UI
+│   ├── Timer.tsx    # Core timer logic + UI + completion modal
 │   ├── Stats.tsx    # Statistics cards
-│   ├── SessionList.tsx  # Session list
+│   ├── SessionList.tsx  # Session list with date groups + tags
+│   ├── AuthGate.tsx     # Clerk sign-in gate
 │   └── Providers.tsx    # Clerk + Convex providers
 └── lib/
-    └── useUserId.ts # User ID hook (Clerk/dev)
+    ├── useUserId.ts     # User ID hook (Clerk/dev)
+    └── retryQueue.ts    # localStorage-based offline mutation retry
 
 convex/
 ├── schema.ts        # pomodoroSessions table
-├── sessions.ts      # CRUD mutations + queries + stats
-└── auth.config.ts   # Clerk JWT config
+├── sessions.ts      # CRUD mutations + queries + stats + agentSummary + activeUserId
+├── auth.config.ts   # Clerk JWT config
+└── tsconfig.json    # Convex-specific TS config
+
+public/
+├── sw.js            # Service worker (network-first nav, cache-first assets)
+├── manifest.json    # PWA manifest
+└── icon-*.png       # PWA icons
 
 e2e/
-├── smoke.spec.ts    # Critical pages load
-└── timer.spec.ts    # Timer interaction flow
+├── smoke.spec.ts       # Critical pages load (5 tests)
+├── timer.spec.ts       # Timer interaction + keyboard shortcuts (11 tests)
+└── dashboard.spec.ts   # Dashboard period selector + stats (4 tests)
 
 .claude/skills/
 ├── sprint/          # Sprint cycle (build → test → audit → PR)
 ├── site-audit/      # Multi-reviewer quality audit
-└── pomodoro-check/  # Agent checks c3z's usage
+└── pomodoro-check/  # Agent checks c3z's usage (auto-detects userId)
 ```
 
 ## Conventions
@@ -77,18 +89,14 @@ e2e/
 - **Routes:** lowercase, React Router v7 file convention
 - **CSS:** Tailwind 4 with custom theme vars (pomored, breakgreen, surface)
 - **Font:** JetBrains Mono (monospace), Inter (sans)
-- **Tests:** Playwright E2E in `e2e/`, must pass before PR
+- **Tests:** Playwright E2E in `e2e/`, must pass before PR (20 tests)
 
 ## Quality Tracking
 
 Sprint cycle: brief → build → test → staging → audit → triage → compare → PR.
 Session summary and priorities in `s.md`.
 
-| Reviewer | #1 |
-|----------|-----|
-| End-user (PRIMARY) | — |
-| Developer Experience | — |
-| Performance | — |
+Current consolidated score: **8.2/10** (Sprint #7).
 
 End-user is the main quality driver. Stop condition: >= 7.0/10, P1 = 0.
 
@@ -101,6 +109,11 @@ VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
 CLERK_JWT_ISSUER_DOMAIN=https://xxx.clerk.accounts.dev
 CONVEX_DEPLOYMENT=dev:xxx
 ```
+
+## Convex Deployments
+
+- **Dev:** `first-curlew-203` (CONVEX_DEPLOYMENT in .env.local)
+- **Prod:** `efficient-wolf-51` (deploy with `npx convex deploy --yes`)
 
 ## Sprint Rules
 

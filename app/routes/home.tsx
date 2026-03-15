@@ -9,7 +9,7 @@ import { useUserId } from "~/lib/useUserId";
 const PERIOD_OPTIONS = [
   { label: "7d", days: 7 },
   { label: "30d", days: 30 },
-  { label: "All", days: 365 },
+  { label: "All", days: 3650 },
 ] as const;
 
 export default function Home() {

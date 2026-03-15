@@ -4,7 +4,7 @@ import { AuthGate, AuthNav } from "~/components/AuthGate";
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `font-mono text-sm px-3 py-1.5 rounded-lg transition-colors ${
+    `font-mono text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-lg transition-colors ${
       isActive
         ? "bg-surface-lighter text-white"
         : "text-gray-500 hover:text-gray-300"
@@ -12,7 +12,7 @@ function Nav() {
 
   return (
     <nav className="border-b border-surface-lighter">
-      <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div className="max-w-4xl mx-auto px-2 sm:px-4 h-14 flex items-center justify-between gap-1">
         <NavLink
           to="/"
           className="text-pomored font-bold font-mono text-lg shrink-0"

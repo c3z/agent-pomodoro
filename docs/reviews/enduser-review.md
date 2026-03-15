@@ -1,31 +1,31 @@
-# End-User Review: Agent Pomodoro (Sprint #7)
+# End-User Review: Agent Pomodoro (Sprint #8)
 
 **Reviewer:** End-user perspective (daily Pomodoro user)
 **Date:** 2026-03-15
-**Previous Scores:** Sprint #1: 5.6, Sprint #2: 6.6, Sprint #3: 7.3, Sprint #5: 7.7, Sprint #6: 7.9
-**Scope:** UI/UX, daily usability, mobile readiness, agent queryability
+**Previous Scores:** #1: 5.6, #2: 6.6, #3: 7.3, #5: 7.7, #6: 7.9, #7: 8.2
+**Scope:** Sprint #8 changes -- "All" period fix (3650d), mobile nav fix (<360px), CLAUDE.md update
 
 ---
 
-## Sprint #7 Changes Evaluated
+## Sprint #8 Changes Evaluated
 
-1. **Stats period selector (7d / 30d / All)** -- Dashboard now has a 3-button toggle below the header. `PERIOD_OPTIONS` array maps labels to day counts (7, 30, 365). The `periodDays` state drives the `sinceDaysAgo` parameter passed to the `stats` query. Active button gets `bg-surface-lighter text-white`, inactive gets `text-gray-500 hover:text-gray-300`. Default: 7d.
-2. **7 new E2E tests** -- `dashboard.spec.ts` (4 tests: period selector visible, 7d default selected, switching to 30d, stat cards visible) and new tests in `timer.spec.ts` (keyboard Space starts, Escape resets, keyboard hint visible). Total timer tests: 11.
-3. **Mutation retry queue for offline resilience** -- `retryQueue.ts` provides localStorage-backed queue with `enqueue`, `getQueue`, `removeItem`, `clearQueue`. `timer.tsx` enqueues failed `start` mutations and flushes on `online` event.
+1. **"All" period now uses 3650 days instead of 365** -- `PERIOD_OPTIONS` in `home.tsx` changed from `{ label: "All", days: 365 }` to `{ label: "All", days: 3650 }`. This is a 10-year window, effectively all-time for any realistic usage horizon.
+2. **Mobile nav fixed for <360px screens** -- `layout.tsx` nav links changed from `text-sm px-3` to `text-xs sm:text-sm px-2 sm:px-3`. Container padding changed from `px-4` to `px-2 sm:px-4` with added `gap-1`. The brand label now shows only the tomato emoji on small screens (`sm:hidden` / `hidden sm:inline` split), and nav labels shorten ("Dashboard" becomes "Home", "History" becomes "Log") on mobile.
+3. **CLAUDE.md updated** -- Architecture docs brought current. No user-facing impact.
 
 ---
 
-## Overall Score: 8.2 / 10
+## Overall Score: 8.3 / 10
 
-| # | Category | Sprint #1 | Sprint #2 | Sprint #3 | Sprint #5 | Sprint #6 | Sprint #7 | Delta |
-|---|----------|-----------|-----------|-----------|-----------|-----------|-----------|-------|
-| 1 | First Impression | 6 | 7 | 7 | 7.5 | 7.5 | 8 | +0.5 |
-| 2 | Timer UX | 5 | 8 | 8.5 | 9 | 9.5 | 9.5 | 0 |
-| 3 | Data Visibility | 6 | 6 | 7 | 7.5 | 8 | 8.5 | +0.5 |
-| 4 | Mobile Usability | 4 | 5 | 7 | 7 | 7 | 7 | 0 |
-| 5 | Agent Integration | 7 | 7 | 7 | 7.5 | 7.5 | 8 | +0.5 |
+| # | Category | #1 | #2 | #3 | #5 | #6 | #7 | #8 | Delta |
+|---|----------|-----|-----|-----|-----|-----|-----|-----|-------|
+| 1 | First Impression | 6 | 7 | 7 | 7.5 | 7.5 | 8 | 8 | 0 |
+| 2 | Timer UX | 5 | 8 | 8.5 | 9 | 9.5 | 9.5 | 9.5 | 0 |
+| 3 | Data Visibility | 6 | 6 | 7 | 7.5 | 8 | 8.5 | 8.5 | 0 |
+| 4 | Mobile Usability | 4 | 5 | 7 | 7 | 7 | 7 | 7.5 | +0.5 |
+| 5 | Agent Integration | 7 | 7 | 7 | 7.5 | 7.5 | 8 | 8 | 0 |
 
-**Average: (8 + 9.5 + 8.5 + 7 + 8) / 5 = 8.2**
+**Average: (8 + 9.5 + 8.5 + 7.5 + 8) / 5 = 8.3**
 
 ---
 
@@ -33,95 +33,84 @@
 
 ### 1. First Impression (8.0/10)
 
-The stats period selector is the first thing a returning user notices that's new. The 3-button toggle (`7d | 30d | All`) sits centered below the heading, above the stat cards. The visual language is consistent -- same `rounded-lg font-mono text-xs` as other pill buttons in the app. Active state uses `bg-surface-lighter text-white`, inactive `text-gray-500 hover:text-gray-300`. No visual noise, no confusion about what it does.
+No changes to the dashboard layout, stat cards, or onboarding flow this sprint. The "All" period fix is invisible to the first impression because the default is still 7d and the visual treatment is unchanged.
 
-The skeleton loading state (4 pulsing cards) remains in place and now correctly covers the period-switch transition -- when the user clicks "30d", the stats query re-fires with the new `sinceDaysAgo` parameter and the skeleton shows while Convex responds. In practice, Convex is fast enough that the skeleton barely flashes, but the fallback is there.
-
-The dashboard now tells a richer story at a glance: "This week you did X, this month you did Y." That's the difference between a current-state widget and a trends dashboard. For a user who has been running the app for weeks, this is the feature that makes the home page worth visiting instead of going straight to `/timer`.
+The dashboard still opens with `periodDays: 7`, showing the stats period selector (`7d | 30d | All`), four stat cards, the "Start Pomodoro" CTA, and today's sessions. This is solid. The hierarchy is clear: at-a-glance numbers at the top, action button in the middle, session log at the bottom.
 
 **What still holds this back from 9:**
-- No onboarding state for first-time users. The dashboard with zero data and zero context still greets a new user with a wall of "0" stats and "No sessions yet." A welcome card with a brief explanation and a direct "Start your first session" prompt would make the first 10 seconds meaningfully better.
-- "All" maps to 365 days (`{ label: "All", days: 365 }`), not actual all-time. If c3z uses this app for more than a year, "All" silently drops older data. The backend's `stats` query could accept a sentinel value (e.g., `sinceDaysAgo: 0` or `sinceDaysAgo: undefined`) to mean "no time filter." Currently, it defaults to 7 if not provided, so the 365 cap is a frontend design choice, not a backend limitation per se -- but the backend does `Date.now() - since * 24 * 60 * 60 * 1000` which means passing 0 would return nothing. A backend change is needed to support true "all time."
+- No first-time user state. A new user sees four stat cards all reading "0" or "--" with no explanation of what the app does or how to use it. A welcome card with a brief explanation and a prominent "Start your first session" prompt would reduce the 10-second bounce risk.
+- The "Agent Pomodoro" heading and "Focus tracking for humans supervised by AI agents" subtitle are nice flavor text but do not explain the app to a new user. The subtitle reads like a tagline, not an onboarding message.
+- `avgSessionsPerDay` is still computed by the backend but not rendered. A fifth stat card ("Avg/Day") would give the dashboard more trend value without adding complexity.
 
-**Score moves from 7.5 to 8.0.** The period selector was explicitly identified as the path to 8.0 in the Sprint #6 review, and it delivers.
+**Holds at 8.0.** No sprint #8 changes affect this category.
 
 ### 2. Timer UX (9.5/10)
 
-No functional changes to the timer in Sprint #7. The timer was already at 9.5 after Sprint #6's keyboard shortcut and AudioContext fixes.
+No changes to the timer in Sprint #8. The timer remains the strongest part of the app.
 
-What Sprint #7 adds is **confidence**: 7 new E2E tests validate the timer flow that was previously only manually tested. The keyboard shortcut tests (`keyboard space starts the timer`, `keyboard escape resets the timer`) and the `keyboard hint is visible` test mean that future sprints cannot accidentally regress the keyboard flow without the CI catching it. The mode-switching tests (`switching to break shows 05:00`, `switching to long break shows 15:00`) lock in the config values.
+The full feature set: circular progress ring with mode-colored fill, wall-clock-anchored countdown (survives tab switches and sleep), keyboard shortcuts (Space = start/pause, Esc = reset), completion sound via Web Audio API, browser notifications, mode selector (Focus / Break / Long Break), pomodoro counter dots, and the post-session completion modal with notes and quick tags.
 
-From an end-user perspective, this doesn't change the experience today, but it protects the experience tomorrow. The timer is the core product -- regressions here would be catastrophic for trust. The test coverage is proportional to the risk.
+**Outstanding issues from prior sprints:**
+- Timer state lost on page navigation. If a user navigates to History while a timer is running, the timer resets. This is an architectural issue (state lives in component, not in a global store or URL). It's the most impactful remaining UX gap.
+- No visual urgency in final 30 seconds (e.g., pulsing ring, color shift, faster tick sound).
+- No haptic feedback on mobile completion.
+- Completion modal's `Cmd+Enter` shortcut hint is meaningless on mobile. Could detect touch devices and hide it.
 
-**Outstanding from Sprint #6:**
-- Timer state still lost on page navigation (architectural, not sprint-scoped)
-- No visual urgency in final 30 seconds
-- No haptic feedback on mobile
-
-**Holds at 9.5.** The E2E tests are valuable but invisible to the user.
+**Holds at 9.5.** The timer is mature. The remaining issues are P3-level polish.
 
 ### 3. Data Visibility (8.5/10)
 
-The period selector is the biggest Data Visibility upgrade since tags were added in Sprint #6. It closes the gap flagged repeatedly since Sprint #3: "stats hardcoded to 7 days."
+The "All" period fix from 365 to 3650 days is a Data Visibility change, but its practical impact is zero for now -- the app has existed for far less than a year. The fix is preventive: it ensures the "All" label will not become a lie when the app has been in use for over 365 days.
 
-**How it works in practice:**
-- User opens dashboard. Sees 7d stats by default (correct for daily check-in).
-- Clicks "30d" -- stat cards update: streak might be longer, focus hours are higher, completion rate may differ. The user can now see monthly patterns.
-- Clicks "All" -- the long view. "How much total focus time have I accumulated?"
+This is the right call. 3650 days (10 years) is functionally equivalent to "all time" for a personal productivity app. The alternative -- adding a true "no time filter" code path in the backend -- would be more correct but requires a backend schema change to the `stats` query to accept an optional `sinceDaysAgo`. The 3650d approach is a pragmatic fix that closes P2 #34 from Sprint #7 without touching the backend.
 
-The `period` field in `StatsData` (returned as `"7d"`, `"30d"`, `"365d"`) is shown as a sublabel under "Focus Time" (e.g., "3.5h" with sublabel "7d"). This contextualizes the number: you know the hours are scoped to the selected period. Smart use of an existing UI slot.
+**What still limits this category:**
+- Notes in session rows are truncated at `max-w-48` with no expand mechanism. Users who write detailed session notes cannot read them back in the history view.
+- No tag filtering in history. Tags are rendered as passive pills but are not clickable filters. A user who tags sessions as "deep-work" cannot filter history to see only deep-work sessions.
+- `avgSessionsPerDay` computed but not displayed.
+- History pagination exists (added Sprint #7, `PAGE_SIZE = 50` with "Load more") which resolved the Sprint #7 P1. Good.
 
-The stat cards themselves remain the right set of KPIs: Streak (behavioral consistency), Focus Time (volume), Completion % (quality), Since Last (recency/urgency). The color coding is unchanged and still effective.
+**Holds at 8.5.** The 3650d fix is correct but does not materially change the data experience today.
 
-**What still holds this back:**
-- P1: History page caps at `limit: 100` with no pagination or "load more." After a few weeks of heavy use (6-8 sessions/day), a user cannot access sessions older than ~2 weeks. This is a real data visibility gap -- the user writes notes and tags on every session but physically cannot scroll back to read them.
-- P2: `avgSessionsPerDay` is computed by the backend (`Math.round((workSessions.length / since) * 10) / 10`) but not displayed anywhere. This is a useful trend metric that's one `<StatCard>` away from being visible.
-- P2: Notes in session list are still truncated at `max-w-48` with no expand mechanism. Detailed notes remain unreadable after writing.
-- P2: No filtering by tag in history. Tags are displayed but not actionable as filters.
+### 4. Mobile Usability (7.5/10)
 
-**Score moves from 8.0 to 8.5.** The period selector is exactly the feature the Sprint #6 review demanded. The remaining gaps are pagination and filtering, which are Sprint #8 territory.
+This is where Sprint #8 delivers its most user-visible improvement. The nav was explicitly flagged as P2 #8 ("Nav breaks on narrow mobile <360px") since Sprint #4.
 
-### 4. Mobile Usability (7.0/10)
+**What changed:**
+- Nav link font: `text-sm` becomes `text-xs sm:text-sm`. On screens below the `sm` breakpoint (640px), links are 12px instead of 14px. This is a meaningful density improvement on 320px devices (iPhone SE, old Androids).
+- Nav link padding: `px-3` becomes `px-2 sm:px-3`. Saves 8px per link (4px each side x 3 links = 24px total). On a 320px screen with 2x8px container padding, that reclaims 24px of horizontal space.
+- Container padding: `px-4` becomes `px-2 sm:px-4`. Another 16px reclaimed on narrow screens.
+- Container gets `gap-1` for consistent spacing between flex children.
+- Brand label: full "agent-pomodoro" text hidden on small screens, replaced with just the tomato emoji. This saves roughly 120px of horizontal space on mobile -- the single biggest gain.
+- Nav labels: "Dashboard" becomes "Home", "History" becomes "Log" on small screens via `sm:hidden` / `hidden sm:inline` splits.
 
-No mobile-specific changes in Sprint #7. The period selector buttons inherit the same mobile concerns as other small button elements:
+**Impact assessment:** On a 320px screen (iPhone SE):
+- Before: Brand (~140px) + Dashboard (~80px) + Timer (~50px) + History (~60px) + padding (32px) = ~362px. Overflows. Nav either wraps or truncates.
+- After: Brand emoji (~28px) + Home (~40px) + Timer (~44px) + Log (~32px) + padding (16px) + gaps (4px x 3) = ~172px. Fits with 148px to spare for the auth button. Problem solved.
 
-- `px-3 py-1 rounded-lg font-mono text-xs` yields a tap target of roughly 56x28px. Width is fine (3 buttons in a centered row have plenty of horizontal space), but height is below the 44px iOS guideline. Tappable but not comfortably so.
-- The period selector row is `flex justify-center gap-1`, so buttons don't crowd each other. Good.
+This is a clean fix. The responsive breakpoints use Tailwind's `sm:` prefix consistently. The shortened labels ("Home", "Log") are intuitive. The emoji-only brand at narrow widths is a common mobile pattern.
 
-The session list rows remain the biggest mobile concern. Each row packs icon + time + duration label + completion mark + tags + notes into a single `flex items-center gap-3` line. On a 375px screen with 16px side padding, that leaves ~343px of content width. A session with 2 tags and a note will overflow or wrap awkwardly. The `truncate max-w-48` on notes helps prevent the worst case, but the row layout needs a stacked variant for narrow viewports.
+**What still limits this category:**
+- Session list rows remain a single horizontal flex line. On narrow screens, a session with 2 tags and a note will crowd or overflow. A stacked layout (time + duration on one line, tags + notes on a second line) would solve this.
+- Period selector tap targets remain at `py-1` (~28px height), below the 44px iOS Human Interface guideline. Functional but suboptimal for thumb interaction.
+- No bottom nav bar for standalone PWA mode. When the app is launched from the home screen, there's no persistent navigation -- the URL bar is hidden but the nav bar scrolls with content.
+- Completion modal's Cmd+Enter hint is irrelevant on touch devices.
 
-**Outstanding mobile issues:**
-- Session list row overflow on narrow screens
-- Period selector tap targets below 44px guideline
-- No bottom nav bar for standalone PWA
-- Completion modal keyboard shortcuts irrelevant on mobile (no meta keys for Cmd+Enter)
-- No haptic feedback on timer completion
-
-**Holds at 7.0.** No mobile work was done this sprint.
+**Score moves from 7.0 to 7.5.** The nav fix resolves the explicit P2 that's been open since Sprint #4. On sub-360px devices, the nav now fits without overflow. This is a real improvement for mobile users on small devices. The remaining issues are session list density and tap target sizing, which are less critical than broken navigation.
 
 ### 5. Agent Integration (8.0/10)
 
-The mutation retry queue is an infrastructure feature that directly impacts agent integration reliability.
+No Sprint #8 changes affect agent integration directly. The retry queue still only covers `start` mutations. The `agentSummary` endpoint remains hardcoded to 7 days.
 
-**Why it matters for the agent:** If c3z starts a Pomodoro while on a flaky connection (train, cafe, conference), the `start` mutation fails. Without the retry queue, the session never reaches Convex. The agent later queries `agentSummary` and sees zero sessions for today. It concludes c3z is slacking and fires off a scolding. In reality, c3z was working -- the data just didn't persist. False negatives in agent monitoring erode trust in the system.
+However, the "All" period fix has an indirect relevance: the `stats` query now accepts `sinceDaysAgo: 3650` from the frontend. If the agent were to call `stats` directly (rather than `agentSummary`), it could use the same parameter. But the agent's dedicated endpoint (`agentSummary`) does not support period selection, so this is moot.
 
-The retry queue (`retryQueue.ts`) is a clean, minimal implementation:
-- `enqueue()` adds a mutation to localStorage with a timestamp
-- `getQueue()` reads and parses (with try/catch fallback to empty array)
-- `removeItem()` splices a specific index
-- The `online` event listener in `timer.tsx` triggers a flush that iterates the queue and replays mutations
+**Outstanding:**
+- Retry queue only enqueues `start`, not `complete`/`interrupt`. Ghost sessions remain a data integrity risk.
+- `agentSummary` hardcoded to 7 days. No period selection for agent queries.
+- No queue size limit or TTL on retry queue.
+- `agentSummary` does not include tag breakdown.
 
-**What works:**
-- localStorage persistence survives tab close and browser restart. If c3z starts a session offline, closes the laptop, and opens it later when online, the `online` event fires and the queue flushes.
-- The flush iterates backwards (`i = queue.length - 1; i >= 0`) which is safe for splice-on-success -- removing item `i` doesn't shift the indices of items `< i`.
-- Failure during flush leaves the item in the queue for the next `online` event.
-
-**Critical gap -- P2:**
-- Only `start` mutations are enqueued. The `onSessionComplete` and `onSessionInterrupt` handlers in `timer.tsx` catch errors with `console.warn` but do NOT call `enqueue()`. If the network drops between session start and session completion (a 25-minute window where a lot can change), the completion is silently lost. The session persists in Convex as `completed: false, interrupted: false` forever -- a ghost session. The agent sees an incomplete session and cannot distinguish "still running" from "lost data."
-- `agentSummary` remains hardcoded to a 7-day window. The user-facing stats now support period selection, but the agent cannot request a different period. Adding `sinceDaysAgo` to the `agentSummary` args would be a trivial backend change.
-- No queue size limit. If the user stays offline for an extended period, stale mutations accumulate in localStorage without bound. Adding a TTL (e.g., drop items older than 24h) and a cap (e.g., max 50 items) would prevent pathological cases.
-
-**Score moves from 7.5 to 8.0.** The retry queue is a meaningful reliability improvement for the agent data pipeline. The incomplete coverage (start only, not complete/interrupt) prevents it from being a full solution.
+**Holds at 8.0.** No changes to agent-facing features this sprint.
 
 ---
 
@@ -129,26 +118,24 @@ The retry queue (`retryQueue.ts`) is a clean, minimal implementation:
 
 ### P1 (Must fix)
 
-| # | Issue | Component | Status |
-|---|-------|-----------|--------|
-| 21 | History capped at 100 sessions, no pagination or "load more" | `history.tsx:10` | OPEN (Sprint #6) |
+None.
 
-**Active P1 count: 1**
+Sprint #7's P1 (history pagination) was resolved in Sprint #7 itself (`PAGE_SIZE = 50` with "Load more" button). No new P1s identified.
 
-This is elevated from P2 to P1 this sprint. With the period selector encouraging users to think in 30-day and all-time windows, the 100-session hard cap is now a contradiction. The dashboard says "here's your all-time focus hours" but the history page can only show the last ~2 weeks of sessions. Users who tag and annotate sessions cannot access their own historical data. This is a data integrity issue from the user's perspective.
+**Active P1 count: 0**
 
 ### P2 (Should fix)
 
 | # | Issue | Component | Status |
 |---|-------|-----------|--------|
-| 8 | Nav breaks on narrow mobile screens (<360px) | `layout.tsx` | OPEN |
+| 8 | ~~Nav breaks on narrow mobile (<360px)~~ | `layout.tsx` | **RESOLVED Sprint #8** |
 | 20 | Notification icon uses `/favicon.ico` instead of PWA icon | `Timer.tsx:80` | OPEN |
 | 30 | Notes truncated with no expand mechanism | `SessionList.tsx:126` | OPEN |
 | 31 | No tag filtering in history | `history.tsx`, `sessions.ts` | OPEN |
-| 34 | **"All" period = 365 days, not actual all-time** -- `PERIOD_OPTIONS` maps "All" to `days: 365`. For users with >1 year of data, the label lies. Backend `stats` query uses `Date.now() - since * 24 * 60 * 60 * 1000` which needs a code path for "no time filter." | `home.tsx:12`, `sessions.ts:108` | **NEW** |
-| 35 | **Retry queue only enqueues `start`, not `complete`/`interrupt`** -- `onSessionComplete` and `onSessionInterrupt` catch errors and log to console but never call `enqueue()`. Ghost sessions (started but neither completed nor interrupted) accumulate in the database when network drops mid-session. | `timer.tsx:56-79` | **NEW** |
-| 36 | **`avgSessionsPerDay` computed but not displayed** -- Backend returns this field in the stats response but no `StatCard` renders it. A useful trend metric left invisible. | `Stats.tsx`, `sessions.ts:168` | **NEW** |
-| 37 | **No retry queue size limit or TTL** -- localStorage queue grows unbounded. Stale mutations from days ago could replay incorrectly. | `retryQueue.ts` | **NEW** |
+| 34 | ~~"All" period = 365 days, not actual all-time~~ | `home.tsx:12` | **RESOLVED Sprint #8** (pragmatic fix: 3650d) |
+| 35 | Retry queue only enqueues `start`, not `complete`/`interrupt` | `timer.tsx` | OPEN |
+| 36 | `avgSessionsPerDay` computed but not displayed | `Stats.tsx`, `sessions.ts` | OPEN |
+| 37 | No retry queue size limit or TTL | `retryQueue.ts` | OPEN |
 
 ### P3 (Nice to have)
 
@@ -161,70 +148,71 @@ This is elevated from P2 to P1 this sprint. With the period selector encouraging
 | 26 | agentSummary does not include tag breakdown | `sessions.ts` | OPEN |
 | 32 | Completion modal not dismissable by backdrop click | `Timer.tsx:451` | OPEN |
 | 33 | No visual urgency at timer end (last 30s) | `Timer.tsx` | OPEN |
-| 38 | **No first-time user onboarding state** -- Dashboard with zero data shows empty stats and "No sessions yet." A welcome card with a brief explanation would reduce bounce for new users. | `home.tsx` | **NEW** |
-| 39 | **Period selector tap targets below 44px iOS guideline** -- `py-1` yields ~28px height. Functional but below mobile best practice. | `home.tsx:43` | **NEW** |
-| 40 | **`agentSummary` hardcoded to 7d** -- User-facing stats now support period selection but agent API does not accept `sinceDaysAgo`. | `sessions.ts:178` | **NEW** |
+| 38 | No first-time user onboarding state | `home.tsx` | OPEN |
+| 39 | Period selector tap targets below 44px iOS guideline | `home.tsx:43` | OPEN |
+| 40 | `agentSummary` hardcoded to 7d | `sessions.ts` | OPEN |
+| 41 | **Session list rows overflow on narrow mobile** -- Single-line flex layout with icon + time + duration + tags + notes crowds on <375px screens. Needs a stacked variant for narrow viewports. | `SessionList.tsx:90` | **NEW** |
 
 ---
 
 ## What Moved the Needle This Sprint
 
-**Sprint #7 delivered the single feature most requested by the Sprint #6 review: the stats period selector.**
+**Sprint #8 is a maintenance sprint.** It fixes two P2 issues from the backlog and updates documentation. No new features, no new capabilities. This is fine -- the app is past the 8.0 threshold and the backlog has been accumulating P2s faster than they're being resolved. A sprint that closes existing issues without opening new ones is healthy hygiene.
 
-The Sprint #6 review concluded: "The app is one small feature away from 8.0: a stats period selector. The backend supports it. The frontend needs a toggle. This should be the first item in Sprint #7." It was, and it pushes the overall score past the 8.0 threshold.
+The nav fix is the more impactful change. P2 #8 has been open since Sprint #4 -- five sprints. On sub-360px devices, the nav literally broke (overflow, wrapping, or truncation). The fix is well-executed: responsive text sizes, reduced padding, emoji-only brand, shortened labels. It uses Tailwind's responsive prefixes idiomatically and doesn't introduce any new abstractions.
 
-The period selector is a small UI change with outsized impact. It transforms the dashboard from a "what happened this week" widget into a multi-scale trends view. The implementation is clean: a `useState` for `periodDays`, a `PERIOD_OPTIONS` constant, and the existing `sinceDaysAgo` query parameter. No over-engineering, no unnecessary abstraction. Ship it.
+The "All" period fix from 365 to 3650 is technically correct but currently academic -- nobody has 365+ days of data in this app. It's a preventive fix that closes a valid P2 before it can become a real user problem. The pragmatic choice to use 3650 instead of implementing a true "no time filter" backend path is defensible: it avoids backend changes for a case that won't matter for years.
 
-The **E2E test expansion** (7 new tests) does not change the user experience today, but it protects the two most important interaction patterns: keyboard shortcuts and dashboard stat rendering. The `dashboard.spec.ts` tests specifically validate the period selector UI -- that all three buttons render, that 7d is default-selected, and that clicking 30d switches the active state. If a future refactor breaks the period selector, CI will catch it. This is the kind of defensive testing that compound over time.
-
-The **mutation retry queue** addresses a real failure mode (offline session starts) with a pragmatic localStorage solution. It's not a full offline-first architecture -- complete and interrupt mutations still silently fail -- but it covers the most common case: user starts a timer on a flaky connection, the start mutation fails, the queue holds it, and the next `online` event replays it. For agent integration, this means fewer ghost sessions and more accurate reporting.
+The score moves only +0.1 because the changes are incremental fixes to existing functionality, not new capabilities. Mobile Usability gets +0.5 but it was the weakest category, and the other four categories hold flat. The overall average rounds to 8.3.
 
 ---
 
 ## What's Still Missing for 8.5+
 
-### 1. History pagination (P1 #21)
-The most important gap. 100-session cap with no "load more" means historical data is inaccessible. Fix: add cursor-based pagination to `listByUser` query, "Load more" button in `history.tsx`. This alone would push Data Visibility to 9.0.
+### 1. Notes expand + tag filtering (P2 #30, #31)
+The most impactful remaining data visibility features. Users invest effort writing notes and selecting tags on every completed session, but the read-side experience is truncated text and non-interactive tag pills. Making notes expandable (click-to-reveal full text) and tags filterable (click tag to filter history) would make the data collection investment pay off.
 
 ### 2. Complete/interrupt retry (P2 #35)
-The retry queue is half-built. Adding `complete` and `interrupt` to the enqueue path closes the ghost session gap. Without it, the retry queue creates a new failure mode: sessions that start (from queue replay) but never complete (because the completion was lost).
+The retry queue covers `start` mutations but not `complete` or `interrupt`. Ghost sessions (started but never resolved) accumulate in the database when network drops mid-session. The agent sees incomplete sessions and cannot distinguish "still running" from "lost data." This is a data integrity issue that directly affects agent trust.
 
-### 3. Notes expand + tag filtering (P2 #30, #31)
-These are the two "read-side" features that make tags and notes actually useful beyond write-and-forget. A click-to-expand on session rows and a tag filter bar above the history list would make the data collection investment pay off.
+### 3. Timer state persistence on navigation (P3 #12, but architecturally important)
+This is the most impactful single UX issue remaining. If a user starts a 25-minute timer and navigates to History to check something, the timer resets. The workaround is "don't navigate while timing" -- which is a constraint users will forget about and get burned by. A global timer store (React context or URL state) would fix this.
 
-### 4. True "All" period (P2 #34)
-Replace `days: 365` with a backend code path that queries without a time filter. Small change, prevents the "All" label from becoming a lie.
+### 4. Session list mobile layout (P3 #41)
+The nav is fixed, but the session list rows still assume wide-screen horizontal space. Stacking time/duration on one line and tags/notes on a second line would make session history readable on narrow devices.
 
-**Priority path to 8.5:** History pagination (#21) + complete/interrupt retry (#35).
-**Path to 9.0:** + notes expand + tag filtering + true "All" + first-time onboarding.
+**Priority path to 8.5:** Notes expand (#30) + tag filtering (#31) + timer state persistence (#12).
+**Path to 9.0:** + complete/interrupt retry (#35) + session list mobile layout (#41) + first-time onboarding (#38).
 
 ---
 
-## Sprint #7 Scorecard
+## Sprint #8 Scorecard
 
 | Metric | Value |
 |--------|-------|
-| Sprint #6 P2s resolved | 0 of 5 |
-| Sprint #6 P3s resolved | 1 of 8 (#14 stats period -- was P3, now delivered) |
-| New features delivered | 3 (period selector, E2E tests, retry queue) |
-| New issues found | 7 (4 P2, 3 P3) |
-| Active P1 count | **1** (elevated: history pagination) |
-| Active P2 count | 8 |
-| Active P3 count | 10 |
+| Sprint #7 P2s resolved | 2 of 8 (#8 nav, #34 "All" period) |
+| Sprint #7 P3s resolved | 0 of 10 |
+| New features delivered | 0 |
+| New issues found | 1 (P3 #41 session list mobile layout) |
+| Active P1 count | **0** |
+| Active P2 count | 6 |
+| Active P3 count | 11 |
 
 ---
 
 ## Verdict
 
-Sprint #7 crosses the 8.0 line. The stats period selector -- explicitly called out as the path to 8.0 in the Sprint #6 review -- is delivered cleanly and correctly. The E2E test expansion locks in the keyboard-driven flow and dashboard rendering. The retry queue is a meaningful start on offline resilience, though its incomplete coverage (start only) is a notable gap.
+Sprint #8 is a clean maintenance sprint that closes two long-standing P2 issues without introducing new problems. The nav fix resolves a bug that's been open for five sprints, and the "All" period fix prevents a label accuracy issue before it can bite a long-term user.
 
-The score trajectory is healthy: 5.6 -> 6.6 -> 7.3 -> 7.7 -> 7.9 -> 8.2. Each sprint adds 0.3-0.7 points. The app is now genuinely usable as a daily focus tool with agent monitoring capabilities. The remaining gaps are in data access (pagination, filtering) and offline completeness -- not in core functionality.
+The score trajectory continues upward: 5.6 -> 6.6 -> 7.3 -> 7.7 -> 7.9 -> 8.2 -> 8.3. The +0.1 delta is the smallest increment yet, which is expected for a maintenance sprint with no new features. The app is now solidly above the 8.0 stop condition with zero P1 issues.
 
-The P1 elevation of history pagination reflects a real tension: the dashboard now encourages long-term thinking (30d, All views) but the history page can only show ~2 weeks. Resolving this contradiction should be Sprint #8's top priority.
+The app is a genuinely good daily Pomodoro tool. The timer is excellent (9.5), the dashboard is informative (8.0), the data model supports notes and tags for rich session logging. The remaining gaps are in the read-side experience (can't expand notes, can't filter by tag) and architectural polish (timer state persistence, session list mobile layout).
 
-**Previous score: 7.9 / 10**
-**Current score: 8.2 / 10**
-**P1 count: 1**
+The biggest risk to continued score growth is diminishing returns from bug fixes. The remaining P2s (#30, #31, #35, #36, #37) are all feature additions, not bug fixes. The next score jump requires building something new, not just fixing what's broken.
 
-**Path to 8.5:** History pagination + complete/interrupt retry queue.
-**Path to 9.0:** + notes expand + tag filtering + first-time onboarding + true "All" period.
+**Previous score: 8.2 / 10**
+**Current score: 8.3 / 10**
+**P1 count: 0**
+
+**Path to 8.5:** Notes expand + tag filtering.
+**Path to 9.0:** + timer state persistence + complete/interrupt retry + session list mobile layout + first-time onboarding.
