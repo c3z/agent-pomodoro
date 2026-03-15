@@ -31,13 +31,13 @@
 - API key auth middleware with CORS support
 - E2E test for settings page (21 tests total)
 
-### Sprint #10 — `apom` CLI Tool ✅
+### Sprint #10 — `agent-pomodoro` CLI Tool ✅
 - `packages/apom/` — zero-dependency Node 18+ CLI
 - Commands: status, stats, sessions today, sessions, config
 - `--help-llm` JSON schema for AI agents
 - `--json` flag on all data commands
-- Config: ~/.apomrc + APOM_API_KEY env var
-- Updated pomodoro-check skill to prefer apom CLI
+- Config: ~/.agent-pomodoro.json + APOM_API_KEY env var
+- Updated pomodoro-check skill to prefer agent-pomodoro CLI
 
 ### Sprint #11 — Agent Access Reviewer + Open Source Prep ✅
 - LICENSE (MIT)
@@ -59,7 +59,7 @@
 
 ## Upcoming
 
-- [ ] npm publish `apom` (requires c3z to run `npm publish` from packages/apom/)
+- [ ] npm publish `agent-pomodoro` (requires c3z to run `npm publish` from packages/apom/)
 - [ ] GitHub release v1.0
 - [ ] First Agent Access audit with new reviewer
 - [ ] Vercel prod deploy (requires c3z approval)
@@ -91,4 +91,4 @@ Convex integration, timer accuracy, PWA, mobile nav, agent summary.
 Notes/tags UI, service worker, CI typecheck, AudioContext fix, font preload, stats period selector, E2E tests (20), mutation retry queue, history pagination, CLAUDE.md update.
 
 ### Sprints #9-13 — Agent Platform
-REST API + API keys, apom CLI, Agent Access reviewer, open source prep (MIT license, README, CONTRIBUTING), agent-onboarding skill, prod deploy.
+REST API + API keys, agent-pomodoro CLI, Agent Access reviewer, open source prep (MIT license, README, CONTRIBUTING), agent-onboarding skill, prod deploy.

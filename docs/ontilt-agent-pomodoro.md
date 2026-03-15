@@ -30,7 +30,7 @@ It was built inside Claude Code, by Claude Code, as a hygiene tool for AI-assist
 Here's what that looks like in practice:
 
 ```
-$ apom status
+$ agent-pomodoro status
 Today: 3 pomodoros completed
 Week: 12/15 sessions (80% completion), 5.0h focus
 Streak: 4 days
@@ -93,8 +93,8 @@ The slot machine doesn't care about your focus. The agent does. That's the diffe
 
 ```bash
 npm install -g agent-pomodoro
-apom config set-key <your-api-key>
-apom status
+agent-pomodoro config set-key <your-api-key>
+agent-pomodoro status
 ```
 
 Full source: [github.com/c3z/agent-pomodoro](https://github.com/c3z/agent-pomodoro) (MIT)

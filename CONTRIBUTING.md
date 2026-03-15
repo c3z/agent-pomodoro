@@ -76,5 +76,5 @@ If you modify `convex/schema.ts`:
 
 ## CLI Changes
 
-The `apom` CLI lives in `packages/apom/`. It's plain JavaScript (ESM, no build step).
+The `agent-pomodoro` CLI lives in `packages/apom/`. It's plain JavaScript (ESM, no build step).
 Test locally: `node packages/apom/bin/apom.mjs --help`

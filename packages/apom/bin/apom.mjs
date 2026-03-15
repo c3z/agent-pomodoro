@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-const CONFIG_PATH = join(homedir(), ".apomrc");
+const CONFIG_PATH = join(homedir(), ".agent-pomodoro.json");
 const DEFAULT_URL = "https://efficient-wolf-51.eu-west-1.convex.site";
 
 // ── Config ──────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ async function apiCall(path) {
   const apiKey = getApiKey();
   if (!apiKey) {
     console.error("Error: No API key configured.");
-    console.error("Run: apom config set-key <your-api-key>");
+    console.error("Run: agent-pomodoro config set-key <your-api-key>");
     console.error("Or set APOM_API_KEY environment variable.");
     process.exit(1);
   }
@@ -145,7 +145,7 @@ function cmdConfig(args) {
   if (subCmd === "set-key") {
     const key = args[1];
     if (!key) {
-      console.error("Usage: apom config set-key <api-key>");
+      console.error("Usage: agent-pomodoro config set-key <api-key>");
       process.exit(1);
     }
     const config = loadConfig();
@@ -155,7 +155,7 @@ function cmdConfig(args) {
   } else if (subCmd === "set-url") {
     const url = args[1];
     if (!url) {
-      console.error("Usage: apom config set-url <convex-site-url>");
+      console.error("Usage: agent-pomodoro config set-url <convex-site-url>");
       process.exit(1);
     }
     const config = loadConfig();
@@ -170,29 +170,29 @@ function cmdConfig(args) {
     console.log(`API Key: ${apiKey ? apiKey.slice(0, 12) + "..." : "(not set)"}`);
   } else {
     console.log("Usage:");
-    console.log("  apom config set-key <api-key>  Set API key");
-    console.log("  apom config set-url <url>      Set Convex site URL");
-    console.log("  apom config show               Show current config");
+    console.log("  agent-pomodoro config set-key <api-key>  Set API key");
+    console.log("  agent-pomodoro config set-url <url>      Set Convex site URL");
+    console.log("  agent-pomodoro config show               Show current config");
   }
 }
 
 function cmdHelpLlm() {
   const schema = {
-    name: "apom",
+    name: "agent-pomodoro",
     version: "0.1.0",
     description: "CLI for AI agents to query Agent Pomodoro focus/productivity data",
     base_url: getBaseUrl(),
     auth: {
       type: "bearer",
       header: "Authorization: Bearer <apom_api_key>",
-      setup: "apom config set-key <key>",
+      setup: "agent-pomodoro config set-key <key>",
       env_var: "APOM_API_KEY",
     },
     commands: [
       {
         name: "status",
         description: "Quick summary: today's pomodoros, week stats, streak, last session",
-        usage: "apom status [--json]",
+        usage: "agent-pomodoro status [--json]",
         endpoint: "GET /api/status",
         response_example: {
           status: "Today: 3 pomodoros completed\nWeek: 12/15 sessions (80% completion), 5.0h focus\nStreak: 3 days\nLast session: 1.2h ago",
@@ -201,7 +201,7 @@ function cmdHelpLlm() {
       {
         name: "stats",
         description: "Detailed statistics for a period",
-        usage: "apom stats [days] [--json]",
+        usage: "agent-pomodoro stats [days] [--json]",
         endpoint: "GET /api/stats?days=N",
         parameters: { days: { type: "integer", default: 7, max: 3650 } },
         response_example: {
@@ -221,13 +221,13 @@ function cmdHelpLlm() {
       {
         name: "sessions today",
         description: "List today's pomodoro sessions",
-        usage: "apom sessions today [--json]",
+        usage: "agent-pomodoro sessions today [--json]",
         endpoint: "GET /api/sessions/today",
       },
       {
         name: "sessions",
         description: "List recent sessions",
-        usage: "apom sessions [limit] [--json]",
+        usage: "agent-pomodoro sessions [limit] [--json]",
         endpoint: "GET /api/sessions?limit=N",
         parameters: { limit: { type: "integer", default: 20, max: 200 } },
       },
@@ -235,9 +235,9 @@ function cmdHelpLlm() {
         name: "config",
         description: "Manage CLI configuration",
         subcommands: [
-          { name: "set-key", usage: "apom config set-key <api-key>" },
-          { name: "set-url", usage: "apom config set-url <convex-site-url>" },
-          { name: "show", usage: "apom config show" },
+          { name: "set-key", usage: "agent-pomodoro config set-key <api-key>" },
+          { name: "set-url", usage: "agent-pomodoro config set-url <convex-site-url>" },
+          { name: "show", usage: "agent-pomodoro config show" },
         ],
       },
     ],
@@ -252,18 +252,18 @@ function cmdHelpLlm() {
 }
 
 function cmdHelp() {
-  console.log(`apom — Agent Pomodoro CLI
+  console.log(`agent-pomodoro — Agent Pomodoro CLI
 
 Usage:
-  apom status              Quick summary (today, week, streak)
-  apom stats [days]        Detailed stats (default: 7 days)
-  apom sessions today      Today's sessions
-  apom sessions [limit]    Recent sessions (default: 20)
-  apom config set-key <k>  Set API key
-  apom config set-url <u>  Set server URL
-  apom config show         Show config
-  apom --help-llm          JSON schema for AI agents
-  apom --help              This help
+  agent-pomodoro status              Quick summary (today, week, streak)
+  agent-pomodoro stats [days]        Detailed stats (default: 7 days)
+  agent-pomodoro sessions today      Today's sessions
+  agent-pomodoro sessions [limit]    Recent sessions (default: 20)
+  agent-pomodoro config set-key <k>  Set API key
+  agent-pomodoro config set-url <u>  Set server URL
+  agent-pomodoro config show         Show config
+  agent-pomodoro --help-llm          JSON schema for AI agents
+  agent-pomodoro --help              This help
 
 Flags:
   --json    Machine-readable JSON output
@@ -272,7 +272,7 @@ Env vars:
   APOM_API_KEY    API key (overrides config file)
   APOM_URL        Server URL (overrides config file)
 
-Config: ~/.apomrc`);
+Config: ~/.agent-pomodoro.json`);
 }
 
 // ── Main ────────────────────────────────────────────────────────────
@@ -294,6 +294,6 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   cmdConfig(args.slice(1));
 } else {
   console.error(`Unknown command: ${cmd}`);
-  console.error("Run: apom --help");
+  console.error("Run: agent-pomodoro --help");
   process.exit(1);
 }

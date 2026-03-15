@@ -35,15 +35,15 @@ The human needs to:
 npm install -g agent-pomodoro
 
 # Set API key
-apom config set-key apom_xxxx...
+agent-pomodoro config set-key apom_xxxx...
 
 # Verify connection
-apom status
+agent-pomodoro status
 ```
 
 ### Step 3: Verify access
 
-Run `apom status` — you should see something like:
+Run `agent-pomodoro status` — you should see something like:
 ```
 Today: 2 pomodoros completed
 Week: 8/10 sessions (80% completion), 3.3h focus
@@ -52,19 +52,19 @@ Last session: 1.5h ago
 ```
 
 If you get an error, check:
-- Is the API key correct? (`apom config show`)
-- Is the server reachable? (`apom config set-url <url>` if using custom deployment)
+- Is the API key correct? (`agent-pomodoro config show`)
+- Is the server reachable? (`agent-pomodoro config set-url <url>` if using custom deployment)
 
 ## Available Commands
 
 | Command | What it does |
 |---------|-------------|
-| `apom status` | Quick summary (today + week + streak) |
-| `apom stats 7` | Detailed stats for last 7 days |
-| `apom stats 30` | Detailed stats for last 30 days |
-| `apom sessions today` | List today's sessions |
-| `apom sessions 20` | List 20 most recent sessions |
-| `apom --help-llm` | Full JSON schema for programmatic use |
+| `agent-pomodoro status` | Quick summary (today + week + streak) |
+| `agent-pomodoro stats 7` | Detailed stats for last 7 days |
+| `agent-pomodoro stats 30` | Detailed stats for last 30 days |
+| `agent-pomodoro sessions today` | List today's sessions |
+| `agent-pomodoro sessions 20` | List 20 most recent sessions |
+| `agent-pomodoro --help-llm` | Full JSON schema for programmatic use |
 
 Add `--json` to any command for machine-readable output.
 
@@ -114,7 +114,7 @@ Acknowledge briefly, don't over-celebrate:
 
 ## Integration Tips
 
-- Check `apom status` at the start of each conversation to set context
+- Check `agent-pomodoro status` at the start of each conversation to set context
 - If the human is procrastinating, remind them of their streak
-- Use `apom stats 30 --json` for trend analysis
+- Use `agent-pomodoro stats 30 --json` for trend analysis
 - The `completionRate` field is the most telling metric — low completion means the human starts but gets distracted

@@ -23,7 +23,7 @@ Open `http://localhost:5173`. Sign in with Clerk, start a pomodoro.
 npm install -g agent-pomodoro
 ```
 
-This installs the `apom` command globally.
+This installs the `agent-pomodoro` command globally.
 
 ### 2. Get an API key
 
@@ -32,16 +32,16 @@ Go to Settings in the app and create an API key.
 ### 3. Configure
 
 ```bash
-apom config set-key apom_your_key_here
+agent-pomodoro config set-key apom_your_key_here
 ```
 
 ### 4. Query
 
 ```bash
-apom status              # Quick summary
-apom stats 7             # Last 7 days
-apom sessions today      # Today's sessions
-apom --help-llm          # Full JSON schema for agents
+agent-pomodoro status              # Quick summary
+agent-pomodoro stats 7             # Last 7 days
+agent-pomodoro sessions today      # Today's sessions
+agent-pomodoro --help-llm          # Full JSON schema for agents
 ```
 
 All commands support `--json` for machine-readable output.
@@ -74,8 +74,8 @@ description: |
 ## How to Check
 
 \```bash
-APOM_API_KEY=$(sec get APOM_API_KEY) apom status
-APOM_API_KEY=$(sec get APOM_API_KEY) apom stats 7 --json
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro status
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro stats 7 --json
 \```
 
 ## Interpretation
@@ -92,7 +92,7 @@ When bad: "Last pomodoro was X hours ago. Start a timer. Now."
 When good: "X sessions, Yh focus, Z-day streak. Solid."
 ```
 
-The skill gives your AI agent the context to interpret your data and hold you accountable. Use `apom --help-llm` for the full JSON schema your skill can reference.
+The skill gives your AI agent the context to interpret your data and hold you accountable. Use `agent-pomodoro --help-llm` for the full JSON schema your skill can reference.
 
 ## Stack
 
@@ -100,7 +100,7 @@ The skill gives your AI agent the context to interpret your data and hold you ac
 - **Backend:** Convex (real-time database + serverless functions)
 - **Auth:** Clerk
 - **Tests:** Playwright E2E
-- **CLI:** `agent-pomodoro` on npm (binary: `apom`, zero dependencies)
+- **CLI:** `agent-pomodoro` on npm (binary: `agent-pomodoro`, zero dependencies)
 
 ## Architecture
 

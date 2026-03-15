@@ -20,10 +20,10 @@ Can an AI agent install, connect, query, and interpret Agent Pomodoro data?
 This is the main quality driver from Sprint #9 onwards.
 
 **Scores 5 subcategories 1-10:**
-- CLI Install & Config — can an agent run `npm install -g agent-pomodoro` and `apom config set-key`?
+- CLI Install & Config — can an agent run `npm install -g agent-pomodoro` and `agent-pomodoro config set-key`?
 - API Key Flow — can a user generate a key in Settings, copy it, configure the CLI?
-- Query & Interpret — does `apom status` / `apom stats` return clear, actionable data?
-- LLM Friendliness — does `apom --help-llm` give complete JSON schema with examples?
+- Query & Interpret — does `agent-pomodoro status` / `agent-pomodoro stats` return clear, actionable data?
+- LLM Friendliness — does `agent-pomodoro --help-llm` give complete JSON schema with examples?
 - REST API — do HTTP endpoints work with curl + Bearer token auth?
 
 **Reads:** `packages/apom/bin/apom.mjs`, `packages/apom/package.json`, `convex/http.ts`, `convex/apiKeys.ts`, `app/routes/settings.tsx`, `.claude/skills/pomodoro-check/SKILL.md`

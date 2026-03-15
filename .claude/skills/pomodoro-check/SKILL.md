@@ -15,40 +15,40 @@ description: |
 This skill lets Claude Code (Atropa) query c3z's Pomodoro usage and hold him accountable.
 Used proactively during morning routines, evening reviews, or when c3z seems distracted.
 
-## How to Check (preferred: `apom` CLI)
+## How to Check (preferred: `agent-pomodoro` CLI)
 
-API key is stored in sec. Always load it before running apom:
+API key is stored in sec. Always load it before running agent-pomodoro:
 
 ### Quick status (recommended)
 ```bash
-APOM_API_KEY=$(sec get APOM_API_KEY) apom status
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro status
 ```
 
 ### Stats for period
 ```bash
-APOM_API_KEY=$(sec get APOM_API_KEY) apom stats 7        # last 7 days
-APOM_API_KEY=$(sec get APOM_API_KEY) apom stats 30       # last 30 days
-APOM_API_KEY=$(sec get APOM_API_KEY) apom stats 7 --json # machine-readable
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro stats 7        # last 7 days
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro stats 30       # last 30 days
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro stats 7 --json # machine-readable
 ```
 
 ### Today's sessions
 ```bash
-APOM_API_KEY=$(sec get APOM_API_KEY) apom sessions today
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro sessions today
 ```
 
 ### Recent sessions
 ```bash
-APOM_API_KEY=$(sec get APOM_API_KEY) apom sessions 20
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro sessions 20
 ```
 
 ### LLM-friendly help
 ```bash
-apom --help-llm    # full JSON schema for agents (no key needed)
+agent-pomodoro --help-llm    # full JSON schema for agents (no key needed)
 ```
 
 ## Fallback: Direct Convex queries
 
-If `apom` is not available, use direct Convex queries:
+If `agent-pomodoro` is not available, use direct Convex queries:
 
 ### Step 1: Get active userId
 ```bash
