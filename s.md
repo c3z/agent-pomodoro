@@ -1,14 +1,14 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #8 (completed)
-## Consolidated Score: 8.5/10
+## Current Sprint: #13 (completed)
+## Consolidated Score: 8.5/10 (Phase 1) — Phase 2 scoring pending first audit
 ## Phase: PIVOT — from app polish to AI agent platform + open source (MIT)
 
 ## Reviewer Weight (from Sprint #9)
 
 | Reviewer | Weight | Role |
 |----------|--------|------|
-| Agent Access (NEW, PRIMARY) | **70%** | Can an AI agent install, connect, query, interpret? |
+| Agent Access (PRIMARY) | **70%** | Can an AI agent install, connect, query, interpret? |
 | End-user | 10% | Regression guard |
 | Developer Experience | 10% | Regression guard |
 | Performance | 10% | Regression guard |
@@ -22,33 +22,47 @@
 | Performance | 5.4 | 6.6 | 7.2 | 7.2 | 7.6 | 7.8 | **8.2** |
 | **Consolidated** | **5.8** | **6.9** | **7.3** | **7.6** | **7.8** | **8.2** | **8.5** |
 
-## Upcoming Sprints (Phase 2: Agent Platform)
+## Completed Sprints (Phase 2: Agent Platform)
 
-### Sprint #9 — REST API + API Key Auth
-- Convex HTTP endpoints wrapping existing queries (stats, sessions, agentSummary, todayByUser)
-- API key model in Convex schema (apiKeys table)
-- API key generation UI in app (Settings page)
-- Auth middleware validating API key on HTTP requests
-- E2E test: call HTTP endpoint with valid/invalid key
+### Sprint #9 — REST API + API Key Auth ✅
+- 4 Convex HTTP endpoints (status, stats, sessions/today, sessions)
+- apiKeys table with SHA-256 hash validation
+- Settings page with key generation/copy/revoke UI
+- API key auth middleware with CORS support
+- E2E test for settings page (21 tests total)
 
-### Sprint #10 — `apom` CLI Tool
-- New npm package in `packages/apom/`
-- Commands: `apom status`, `apom stats [period]`, `apom sessions [today|recent]`
-- `apom config set-key <key>` — stores key in ~/.apomrc
-- `apom --help-llm` — JSON output with command schemas, param types, response examples
-- Update pomodoro-check skill to use `apom` instead of `npx convex run`
+### Sprint #10 — `apom` CLI Tool ✅
+- `packages/apom/` — zero-dependency Node 18+ CLI
+- Commands: status, stats, sessions today, sessions, config
+- `--help-llm` JSON schema for AI agents
+- `--json` flag on all data commands
+- Config: ~/.apomrc + APOM_API_KEY env var
+- Updated pomodoro-check skill to prefer apom CLI
 
-### Sprint #11 — Agent Access Reviewer + Open Source Prep
-- Build "Agent Access" reviewer: tests full agent workflow (install → config → query → interpret)
+### Sprint #11 — Agent Access Reviewer + Open Source Prep ✅
 - LICENSE (MIT)
-- README.md (project description, quickstart for humans, quickstart for AI agents)
-- npm package.json prep for `apom` publish
+- README.md with human + agent quickstarts
+- Agent Access reviewer in site-audit (70% weight, primary)
+- Old reviewers demoted to 10% each
 
-### Sprint #12 — Onboarding Skill + CONTRIBUTING.md + Release
-- `agent-onboarding` skill: structured context transfer for new agents
+### Sprint #12 — Onboarding Skill + CONTRIBUTING.md ✅
+- agent-onboarding skill (setup guide + data interpretation)
 - CONTRIBUTING.md for human contributors
-- First npm publish of `apom`
-- GitHub release v1.0
+- CLAUDE.md updated with full Phase 2 architecture
+
+### Sprint #13 — Prod Deploy + Verification ✅
+- Convex prod deployed (efficient-wolf-51) with HTTP endpoints + apiKeys
+- REST API verified on prod (401 without key)
+- Vercel staging deployed
+- Stale .js cleanup in convex/
+- s.md updated
+
+## Upcoming
+
+- [ ] npm publish `apom` (requires c3z to run `npm publish` from packages/apom/)
+- [ ] GitHub release v1.0
+- [ ] First Agent Access audit with new reviewer
+- [ ] Vercel prod deploy (requires c3z approval)
 
 ## Backlog (frozen — app polish phase complete)
 
@@ -75,3 +89,6 @@ Convex integration, timer accuracy, PWA, mobile nav, agent summary.
 
 ### Sprints #5-8 — Polish (7.3 → 8.5)
 Notes/tags UI, service worker, CI typecheck, AudioContext fix, font preload, stats period selector, E2E tests (20), mutation retry queue, history pagination, CLAUDE.md update.
+
+### Sprints #9-13 — Agent Platform
+REST API + API keys, apom CLI, Agent Access reviewer, open source prep (MIT license, README, CONTRIBUTING), agent-onboarding skill, prod deploy.
