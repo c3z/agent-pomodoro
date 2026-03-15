@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
     "allowJs": true,
     "strict": true,
     "moduleResolution": "Bundler",

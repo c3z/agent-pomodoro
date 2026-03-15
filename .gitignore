@@ -9,6 +9,8 @@
 
 # Convex
 convex/_generated/
+convex/*.js
+convex/*.js.map
 
 # Playwright
 /test-results/
