@@ -19,28 +19,28 @@ Used proactively during morning routines, evening reviews, or when c3z seems dis
 
 ### Step 1: Get active userId
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:activeUserId '{}' 2>/dev/null
+cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:activeUserId '{}' 2>/dev/null
 ```
 Use the returned userId in all subsequent queries. If null, no sessions exist yet.
 
 ### Quick check (last 7 days stats)
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:stats '{"userId": "USER_ID", "sinceDaysAgo": 7}'
+cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:stats '{"userId": "USER_ID", "sinceDaysAgo": 7}'
 ```
 
 ### Today's sessions
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:todayByUser '{"userId": "USER_ID"}'
+cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:todayByUser '{"userId": "USER_ID"}'
 ```
 
 ### Recent sessions
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:listByUser '{"userId": "USER_ID", "limit": 20}'
+cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:listByUser '{"userId": "USER_ID", "limit": 20}'
 ```
 
 ### Agent summary (recommended — returns pre-formatted text)
 ```bash
-cd ~/P/agent-pomodoro && npx convex run sessions:agentSummary '{"userId": "USER_ID"}'
+cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:agentSummary '{"userId": "USER_ID"}'
 ```
 
 ## Interpretation Rules
