@@ -55,4 +55,24 @@ test.describe("Timer flow", () => {
     await page.goto("/timer");
     await expect(page.locator("text=0 done")).toBeVisible();
   });
+
+  test("keyboard space starts the timer", async ({ page }) => {
+    await page.goto("/timer");
+    await expect(page.locator("text=25:00")).toBeVisible();
+    await page.keyboard.press("Space");
+    await expect(page.getByTestId("pause-button")).toBeVisible({ timeout: 2000 });
+  });
+
+  test("keyboard escape resets the timer", async ({ page }) => {
+    await page.goto("/timer");
+    await page.getByTestId("start-button").click();
+    await page.waitForTimeout(500);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("text=25:00")).toBeVisible();
+  });
+
+  test("keyboard hint is visible", async ({ page }) => {
+    await page.goto("/timer");
+    await expect(page.locator("text=Space = start/pause")).toBeVisible();
+  });
 });
