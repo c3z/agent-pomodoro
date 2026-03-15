@@ -47,6 +47,9 @@ export const complete = mutation({
     if (!session || session.userId !== args.userId) {
       throw new Error("Session not found or access denied");
     }
+    if (session.completed || session.interrupted) {
+      throw new Error("Session already finished");
+    }
     await ctx.db.patch(args.sessionId, {
       completed: true,
       completedAt: Date.now(),
@@ -66,6 +69,9 @@ export const interrupt = mutation({
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== args.userId) {
       throw new Error("Session not found or access denied");
+    }
+    if (session.completed || session.interrupted) {
+      throw new Error("Session already finished");
     }
     await ctx.db.patch(args.sessionId, {
       interrupted: true,

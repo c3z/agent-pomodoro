@@ -1,7 +1,7 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #14 (completed)
-## Consolidated Score: 8.6/10 (Phase 3)
+## Current Sprint: #15 (completed)
+## Consolidated Score: 8.9/10 (Phase 3)
 ## Phase 3: Closing the Loop — PWA polish, agent write-back, v1.0
 
 ## Reviewer Weight (Phase 3)
@@ -14,22 +14,28 @@
 
 ## Upcoming Sprints (Phase 3: Close the Loop)
 
-### Sprint #15 — Agent write: start/stop sessions via CLI + API
-- `POST /api/sessions/start` (type, durationMinutes)
-- `POST /api/sessions/:id/complete` (notes, tags)
-- `POST /api/sessions/:id/interrupt`
-- `agent-pomodoro start work 25`
-- `agent-pomodoro stop --notes "sprint 15"`
-- App reacts in real-time (Convex subscription — session appears on phone)
-- Update pomodoro-check skill: agent can start timer for user
-
 ### Sprint #16 — Final polish + v1.0 release
 - Fix issues from phone testing
+- Update pomodoro-check + agent-onboarding skills with start/stop/interrupt docs
+- Idempotency guard on POST /api/sessions/start
+- Input length limits on notes/tags via API
 - GitHub release v1.0
 - First full Agent Access audit with new reviewer squad
 - Final s.md summary
 
 ## Completed — Phase 3: Close the Loop
+
+### Sprint #15 — Agent write-back + E2E coverage ✅
+3 POST endpoints (start, complete, interrupt) with validation and error handling. CLI commands: start, stop (--notes, --tags), interrupt. Active session tracking in config. 12 new E2E tests (completion flow, mode transitions, keyboard shortcuts, graceful degradation). Total: 33 tests. Session state validation (P1 fix: prevent double-complete/interrupt). CLI 0.3.0, --help-llm updated.
+
+**Sprint #15 Scores:**
+
+| Reviewer | #14 | #15 | Delta |
+|----------|------|------|-------|
+| End-user | 8.8 | **9.1** | +0.3 |
+| DevEx | 8.4 | **9.0** | +0.6 |
+| Performance | 8.6 | **8.6** | 0 |
+| **Consolidated** | **8.6** | **8.9** | **+0.3** |
 
 ### Sprint #14 — Sounds + Wake Lock + PWA polish ✅
 Two distinct Web Audio completion sounds (singing bowl for work, ascending chime for break), Vibration API, Wake Lock API (screen stays on during timer), PWA manifest polish (id, scope, orientation, categories, maskable icon, iOS meta tags). Audio extracted to `app/lib/sounds.ts`. P2 fixes: await AudioContext.resume(), wake lock unmount cleanup.
@@ -78,7 +84,10 @@ Naming consistency (binary: `agent-pomodoro`), ontilt.dev article, GitHub metada
 - [ ] Timer state lost on page navigation
 - [ ] iOS AudioContext user gesture — sounds may not play on iOS Safari without prior interaction
 - [ ] Maskable icon safe zone — icon-512.png may clip on adaptive icon frames
-- [ ] Completion flow E2E test (timer to 0, modal, save, mode switch)
+- [ ] Idempotency guard on POST /api/sessions/start (prevent duplicate sessions on retry)
+- [ ] Input length limits on notes (500 chars) and tags (10 items) in API
+- [ ] Update pomodoro-check + agent-onboarding skills with start/stop/interrupt docs
+- [ ] CLI error output should respect --json flag
 - [ ] Sound/vibration mute toggle in Settings
 - [ ] Dark/light theme toggle
 - [ ] Custom timer durations

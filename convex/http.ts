@@ -16,7 +16,7 @@ async function hashApiKey(key: string): Promise<string> {
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 } as const;
 
 function jsonResponse(data: unknown, status = 200) {
@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions"]) {
+for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -133,6 +133,107 @@ http.route({
       limit: safeLimit,
     });
     return jsonResponse({ sessions });
+  }),
+});
+
+// POST /api/sessions/start — start a new session
+http.route({
+  path: "/api/sessions/start",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    const type = body.type;
+    if (!["work", "break", "longBreak"].includes(type)) {
+      return jsonResponse({ error: "type must be work, break, or longBreak" }, 400);
+    }
+
+    const durationMinutes = body.durationMinutes ?? (type === "work" ? 25 : type === "break" ? 5 : 15);
+    if (typeof durationMinutes !== "number" || durationMinutes < 1 || durationMinutes > 120) {
+      return jsonResponse({ error: "durationMinutes must be 1-120" }, 400);
+    }
+
+    const sessionId = await ctx.runMutation(api.sessions.start, {
+      userId: auth.userId,
+      type,
+      durationMinutes,
+    });
+
+    return jsonResponse({ sessionId, type, durationMinutes }, 201);
+  }),
+});
+
+// POST /api/sessions/complete — complete a session
+http.route({
+  path: "/api/sessions/complete",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.sessionId) {
+      return jsonResponse({ error: "sessionId is required" }, 400);
+    }
+
+    try {
+      await ctx.runMutation(api.sessions.complete, {
+        sessionId: body.sessionId,
+        userId: auth.userId,
+        notes: body.notes,
+        tags: body.tags,
+      });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to complete session" }, 400);
+    }
+
+    return jsonResponse({ ok: true });
+  }),
+});
+
+// POST /api/sessions/interrupt — interrupt a session
+http.route({
+  path: "/api/sessions/interrupt",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.sessionId) {
+      return jsonResponse({ error: "sessionId is required" }, 400);
+    }
+
+    try {
+      await ctx.runMutation(api.sessions.interrupt, {
+        sessionId: body.sessionId,
+        userId: auth.userId,
+      });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to interrupt session" }, 400);
+    }
+
+    return jsonResponse({ ok: true });
   }),
 });
 

@@ -1,19 +1,19 @@
-# Developer Experience Review — Sprint #14
+# Developer Experience Review — Sprint #15
 
 **Date:** 2026-03-15
 **Reviewer:** Developer Experience
-**Previous Scores:** Sprint #1: 6.4, Sprint #2: 7.4, Sprint #3: 7.4, Sprint #5: 7.8, Sprint #6: 8.0, Sprint #7: 8.6, Sprint #8: 9.0
-**Overall:** 8.6/10
+**Previous Scores:** Sprint #8: 9.0, Sprint #14: 8.4
+**Overall:** 9.0/10
 
 ## Scores
 
-| Subcategory | Sprint #8 | Sprint #14 | Delta | Notes |
-|-------------|-----------|------------|-------|-------|
-| CLI Buildability | 9/10 | 9/10 | 0 | Build pipeline unchanged. `npm run build` and `npm run test` scripts remain clean. No new dependencies that could break headless CI. Web Audio API and Wake Lock API are browser-only with proper guards, so SSR/build is unaffected. The empty Clerk key trick in `playwright.config.ts` still works for degraded-mode E2E. |
-| Skill Integration | 8/10 | 8/10 | 0 | No skill file changes in Sprint #14. `pomodoro-check` skill workflow (`APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro status`) remains functional. REST API endpoints unchanged. The skill does not reference sounds or wake lock, nor does it need to — these are client-side features invisible to agents. |
-| Code Organization | 9/10 | 8/10 | -1 | Timer.tsx has grown to 567 lines. Sprint #14 added ~100 lines of audio synthesis code (makeNote, playWorkCompleteSound, playBreakEndSound, playCompletionSound) plus wake lock functions, all inline in the same file. The audio code is pure utility with zero React dependency — it belongs in a separate module (e.g., `app/lib/sounds.ts`). Wake lock helpers similarly have no React coupling. Timer.tsx is now doing four jobs: timer logic, UI rendering, audio synthesis, and screen wake management. |
-| Test Coverage | 9/10 | 7/10 | -2 | Sprint #14 introduced three user-facing features (work completion sound, break end sound, wake lock) with zero new E2E tests. The existing 21 tests do not exercise timer completion at all — the timer never reaches 0 in any test. There is no verification that `playCompletionSound` is called, no check that the completion modal appears after timer expiry, and no test for wake lock acquisition/release lifecycle. The sound and wake lock code paths are entirely untested at every level. |
-| Sprint Autonomy | 8/10 | 8/10 | 0 | CLAUDE.md was updated in Sprint #13+ with accurate architecture. `s.md` has the Sprint #14 plan. However, `s.md` still says "Current Sprint: #13+" — it was not updated to reflect Sprint #14 as active or completed. The test count in CLAUDE.md says "21 tests" which appears to remain accurate (no new tests added). An agent starting Sprint #15 would need to read `s.md` to find the plan but would see the stale sprint counter. |
+| Subcategory | Sprint #14 | Sprint #15 | Delta | Notes |
+|-------------|------------|------------|-------|-------|
+| CLI Buildability | 9/10 | 9/10 | 0 | Build pipeline unaffected by Sprint #15. Three new POST endpoints in `convex/http.ts` are server-side Convex actions — no impact on `npm run build` or SSR. New CLI commands in `apom.mjs` are zero-dependency Node with no build step. `npm run test` succeeds: 12 new E2E tests use Playwright clock mocking, no real timers, no external dependencies. The `webServer` config in `playwright.config.ts` is unchanged and still works with empty Clerk key for degraded mode. |
+| Skill Integration | 8/10 | 9/10 | +1 | `pomodoro-check` skill now has write-path parity with the CLI: an agent can not only query (`status`, `stats`) but also start and stop sessions via `agent-pomodoro start work 25` / `agent-pomodoro stop --notes "sprint done"`. The `--help-llm` JSON schema documents all 7 commands with endpoint mappings, parameters, and usage examples. Version synced to 0.3.0 in both `package.json` and `--help-llm` output (fixing P3 from Sprint #14). However, `pomodoro-check/SKILL.md` and `agent-onboarding/SKILL.md` do not document the new `start`/`stop`/`interrupt` commands — agents using skills as their primary reference would not discover the write API. |
+| Code Organization | 9/10 | 9/10 | +1 | Sprint #15 addressed Sprint #14's main regression. Audio code was extracted to `app/lib/sounds.ts` (per CLAUDE.md architecture). `convex/http.ts` grew from ~137 to ~240 lines but maintains clean structure: shared auth/CORS helpers at top, CORS preflight loop for all 7 paths, then one route block per endpoint. The 3 POST handlers follow the same pattern as existing GET handlers (authenticate, parse body, validate, call mutation, respond). No new file-level coupling introduced. `sessions.ts` mutations (`start`, `complete`, `interrupt`) are clean with proper auth verification and input validation. The CLI `apom.mjs` grew from ~300 to ~457 lines with consistent patterns (`apiPost` mirrors `apiCall`, command functions follow identical structure). |
+| Test Coverage | 9/10 | 9/10 | +2 | The completion flow E2E gap — recommended since Sprint #5 — is finally closed. 12 new tests in `timer-completion.spec.ts` cover: completion modal appearance after 25min, Save/Skip buttons, tag toggle with class assertion, Skip advances to break (05:00), Save advances to break, pomodoro counter increment, break auto-advances to work (no modal), 4th session triggers long break (15:00), Escape keyboard shortcut skips, Cmd+Enter saves, and 2 sound/wake lock graceful degradation tests (no console errors during work/break completion). Tests use `page.clock.install()` + `page.clock.fastForward()` — no real waits, no flakiness. The `startAndComplete` helper with 500ms tick-then-forward pattern is a smart solution to the frozen-clock-interval problem. Total: 33 tests across 4 spec files. However, the 3 new POST API endpoints have zero E2E coverage — they cannot be tested in Playwright without a running Convex backend, but this gap should be noted. |
+| Sprint Autonomy | 9/10 | 9/10 | +1 | CLAUDE.md accurately reflects Sprint #15 state: architecture tree lists `sounds.ts`, `http.ts` description includes POST endpoints, test count updated to 33, `apom.mjs` description includes "start/stop/interrupt". `s.md` has Sprint #15 plan with specific endpoint names and CLI commands. The `--help-llm` version is now correct (0.3.0). An agent starting Sprint #16 can read CLAUDE.md + s.md and know exactly what exists, where to find it, and what the next sprint contains (final polish + v1.0). Minor friction: `s.md` still says "Current Sprint: #14 (completed)" — Sprint #15 is not yet marked as current/completed in `s.md`. |
 
 ## Findings
 
@@ -23,182 +23,166 @@ None.
 
 ### P2 (Should Fix)
 
-1. **Timer.tsx exceeds single-responsibility: 567 lines mixing 4 concerns.** The audio synthesis code (`makeNote`, `playWorkCompleteSound`, `playBreakEndSound`, `playCompletionSound` — lines 31-100) is pure JavaScript with no React hooks or JSX. It should be extracted to `app/lib/sounds.ts`. The wake lock helpers (`requestWakeLock`, `releaseWakeLock` — defined inside the component but referencing only a ref) should be extracted to `app/lib/wakeLock.ts` or at minimum moved to a custom hook (`useWakeLock`). Currently, any agent modifying audio frequencies must edit Timer.tsx, risking unrelated regressions in timer logic or UI.
+1. **Skills not updated with write commands.** `pomodoro-check/SKILL.md` and `agent-onboarding/SKILL.md` only document read commands (`status`, `stats`, `sessions today`, `sessions`). They do not mention `start`, `stop`, or `interrupt`. An agent onboarding via the `agent-onboarding` skill would learn to query data but would not discover that it can start/stop sessions on behalf of the user — which is the core Sprint #15 feature. The `pomodoro-check` skill's "Response patterns" section says "Odpal timer. Teraz." but gives no instructions on how the agent would actually do that. Now it can: `APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro start work 25`. Both skills should be updated.
 
-2. **No test coverage for Sprint #14 features.** Three features shipped with zero tests:
-   - **Sounds:** Web Audio API calls cannot easily be verified in Playwright, but the *effect* of completion can be tested — when the timer hits 0, the completion modal should appear. This flow is untested across 14 sprints.
-   - **Wake Lock:** Playwright does not expose Wake Lock API, but the lifecycle (acquired on start, released on pause/stop/completion) could be tested via a mock or by verifying no console errors are thrown.
-   - **Vibration:** `navigator.vibrate` is not available in headless Chromium, but the conditional check (`"vibrate" in navigator`) prevents crashes. Still, no test verifies it does not break non-vibration browsers.
+2. **No idempotency guard on `POST /api/sessions/start`.** An agent retrying a failed network request could create duplicate sessions. The CLI stores `activeSession` locally, but the API has no server-side check for an already-running session. If the CLI crashes between the POST response and `saveConfig()`, the local state is lost and the agent can start a second concurrent session. A server-side check in `sessions.start` that rejects if the user already has a non-completed, non-interrupted session from the last N minutes would prevent this. This is a data integrity concern for agent callers that may retry.
 
-   At minimum, a completion flow E2E test (short timer or clock mock -> modal appears -> save works -> timer advances to break) would cover the most critical untested path and implicitly validate that sound/wake lock code does not throw.
+3. **`apiPost` and `apiCall` share 90% identical code.** Both functions in `apom.mjs` do: get API key, build URL, make fetch call, check `res.ok`, parse error body, exit on failure. The only difference is `method: "POST"` and `Content-Type`/`body` fields. This duplication means a future agent fixing error handling must change it in two places. Extract to a shared `apiFetch(method, path, data?)` function.
 
-3. **`s.md` sprint counter stale.** Shows "Current Sprint: #13+ (cleanup done)" but Sprint #14 items are listed in the upcoming section. An agent reading `s.md` to determine the current sprint number would incorrectly create `sprint/13` branch or be confused about state. The counter should be updated to "Current Sprint: #14" with status.
-
-4. **Silent `catch {}` blocks suppress real errors during development.** Four empty catch blocks in Timer.tsx:
-   - `playWorkCompleteSound` line 74: `catch {}`
-   - `playBreakEndSound` line 88: `catch {}`
-   - `requestWakeLock` line 146: `catch {}`
-   - `releaseWakeLock` line 149: `catch(() => {})`
-
-   In production, swallowing audio/wake lock errors is correct — these are non-critical. But during development, a `console.debug` in the catch would help agents diagnose issues like "sound is not playing" without debugging blind. A conditional `import.meta.env.DEV && console.debug(...)` pattern would preserve silent production behavior while aiding agent debugging.
+4. **`cmdStop` does not pass `--json` flag through to error output.** If an agent runs `agent-pomodoro stop --json` but there is no active session, the error is printed via `console.error` as plain text, not as JSON. The `--json` flag on `stop` and `interrupt` only affects success output. Agent callers parsing JSON would get unexpected plain-text on the error path. All commands should return `{"error": "..."}` when `--json` is present.
 
 ### P3 (Nice to Have)
 
-1. **`makeNote` does not disconnect nodes on error path.** If `osc.start()` throws (e.g., AudioContext closed), the oscillator and gain nodes are never disconnected. The `osc.onended` callback handles the happy path, but an error would leak nodes. Wrapping the start/stop in try-catch with explicit disconnect would prevent Web Audio resource leaks on edge cases.
+1. **`s.md` sprint counter stale.** Shows "Current Sprint: #14 (completed)" but Sprint #15 work is done. Should be updated to reflect Sprint #15 completion with scores and history entry. Carried forward from Sprint #14 review (was P2 then).
 
-2. **AudioContext singleton has no explicit cleanup.** The module-level `audioCtx` variable persists for the lifetime of the page. If the user navigates away from the timer page and back multiple times, the same AudioContext is reused (which is correct), but it is never explicitly closed. In practice, browsers handle this well, but a `useEffect` cleanup in the Timer component that calls `audioCtx.close()` on unmount would be formally correct.
+2. **No `--sessionId` override on `stop`/`interrupt`.** If local state is corrupted (crashed agent, manual config edit), there is no way to complete/interrupt a specific session by ID. Adding `--session-id <id>` as an optional override would make the CLI more resilient for agent callers that track session IDs independently.
 
-3. **PWA manifest maskable icon uses same source as regular icon.** `manifest.json` line 23-28 uses `/icon-512.png` for both regular and maskable purposes. Maskable icons should have extra padding (safe zone) to avoid clipping on Android. Using the same image means the icon edges may be cut off on devices that apply the maskable mask. A separate `icon-512-maskable.png` with 20% padding would fix this.
+3. **POST endpoint URL design: `/api/sessions/complete` vs `/api/sessions/:id/complete`.** The `s.md` plan specified RESTful paths (`/api/sessions/:id/complete`) but the implementation uses flat paths with `sessionId` in the request body. The body approach works fine — it avoids path parameter parsing in Convex HTTP router (which doesn't support wildcards well) — but the divergence from `s.md` plan creates a documentation mismatch. Either update `s.md` or add a comment in `http.ts` explaining the design decision.
 
-4. **No ESLint or format enforcement.** Carried forward from Sprint #8. The codebase remains consistent due to single-agent authorship, but the Sprint #14 audio code introduces a new pattern (module-level singleton, `osc.onended` cleanup callbacks) that future agents might replicate incorrectly without lint guardrails.
+4. **`startedAt` stored as `Date.now()` in config, not ISO string.** `config.activeSession.startedAt` is a Unix timestamp (milliseconds). When an agent runs `agent-pomodoro config show`, the active session is not displayed at all — there is no "active session" section in `config show`. Adding active session display to `config show` would help agents debug state.
 
-5. **`--help-llm` version is stale.** `packages/apom/bin/apom.mjs` line 183 shows `version: "0.1.0"` in the LLM help JSON, but `packages/apom/package.json` declares `version: "0.2.0"`. An agent parsing `--help-llm` output would see the wrong version.
+5. **`durationMinutes` validation differs between API and CLI.** The API (`http.ts` line 160) allows 1-120 minutes. The CLI (`apom.mjs` line 182) does not validate — `parseInt("999")` would pass through and be rejected by the API, giving a confusing error. Client-side validation matching the server constraint (1-120) would give clearer errors.
 
-6. **CLAUDE.md does not document Sprint #14 features.** The architecture section describes `Timer.tsx` as "Core timer logic + UI + completion modal" — it does not mention sounds, vibration, or wake lock. An agent reading CLAUDE.md would not know these features exist, which could lead to reimplementation or conflicting changes. Adding "sounds (Web Audio), vibration, wake lock" to the Timer.tsx description would fix this.
+6. **HTTP body parsing has `any` type.** `convex/http.ts` lines 147, 188, 220 use `let body: any`. While Convex TypeScript does not require strict typing in HTTP actions, adding a minimal interface (`{ type: string; durationMinutes?: number }`) would help agents understand the expected shape without reading the validation code below.
 
-7. **Dashboard tests still assert CSS class for active state.** `dashboard.spec.ts` line 14 checks `toHaveClass(/text-white/)`. Carried forward from Sprint #8. Using `aria-pressed` or `data-active` attribute would be more resilient.
+7. **No automated test for CLI `--help` output accuracy.** As the CLI grows (now 7 commands + config subcommands), the `--help` text and `--help-llm` JSON could drift from actual behavior. A snapshot test or at minimum a smoke test (`node apom.mjs --help` exits 0, `node apom.mjs --help-llm | jq .commands` has expected count) would catch drift.
 
 ## Detailed Analysis
 
 ### CLI Buildability (9/10, unchanged)
 
-The build and test pipeline is unaffected by Sprint #14 changes. The key reason: all three features (Web Audio, Wake Lock, Vibration) use proper browser API guards:
+Sprint #15 did not change the build pipeline. The three new Convex HTTP actions in `http.ts` are processed by the Convex compiler (`npx convex dev` / `npx convex deploy`), not by the Vite build. The CLI `apom.mjs` is a standalone script with no build step — it ships as-is via npm.
 
-- `getAudioContext()` creates AudioContext on demand, not at import time
-- `requestWakeLock()` checks `typeof navigator !== "undefined" && "wakeLock" in navigator`
-- `playCompletionSound()` has try-catch wrapping all Web Audio calls
-- `navigator.vibrate` is behind `"vibrate" in navigator` check
+The 12 new E2E tests use Playwright's `page.clock.install()` API to mock the system clock, allowing them to fast-forward through 25-minute timers in milliseconds. This is the correct approach — no `waitForTimeout(25 * 60 * 1000)` waits that would make CI impractical. The `startAndComplete` helper pattern (click Start, advance 500ms for React state to settle, then fast-forward the full duration) is well-designed to avoid the common pitfall of frozen-clock tests where `setInterval` never fires.
 
-None of these will throw during SSR (React Router build) or in headless Chromium (Playwright). The build remains `npm ci && npm run build && npm run test` with no human intervention needed.
+Why not 10: same as Sprint #14 — no CI integration testing with Convex backend. The POST endpoints cannot be verified in CI without a Convex deployment. This remains an accepted gap.
 
-The `package.json` scripts are minimal and unchanged. No new devDependencies were added — the audio synthesis is pure Web Audio API, no third-party sound library. This is the right call for a 4-note chime.
+### Skill Integration (9/10, +1 improvement)
 
-Why not 10: same as Sprint #8. CI runs without Convex env vars, so the Convex integration path (session mutations, API key validation, REST endpoints) is never tested in CI. This is a known, accepted gap for a single-user app.
+Sprint #15 is the most significant skill integration improvement since Sprint #10 (CLI launch). The CLI now has full read-write capability:
 
-### Skill Integration (8/10, unchanged)
+**Read path (existing):** `status`, `stats`, `sessions today`, `sessions [limit]`
+**Write path (new):** `start [type] [minutes]`, `stop [--notes --tags]`, `interrupt`
 
-Sprint #14 features are client-side PWA enhancements. They do not affect:
-- REST API endpoints (`/api/status`, `/api/stats`, `/api/sessions/*`)
-- CLI tool (`agent-pomodoro status/stats/sessions`)
-- `pomodoro-check` skill workflow
-- `agent-onboarding` skill documentation
+The `--help-llm` JSON schema is comprehensive: 7 commands with endpoints, parameters (type, default, enum), usage strings, and response examples. The `tips` array includes the start/stop workflow pattern. An LLM reading this schema has everything needed to drive the full lifecycle.
 
-The skills remain functional and accurate. The `pomodoro-check` skill's interpretation rules (4+ sessions/day = good, hoursSinceLastSession > 24 = scold) are unaffected by whether the app makes sounds.
+Active session tracking via `~/.agent-pomodoro.json` is pragmatic — it avoids needing a "get active session" API endpoint. The trade-off (local state can go stale if the web app completes a session the CLI started) is acceptable for v1.
 
-Why not 9: same gaps as Sprint #8. The `activeUserId` query has no cold-start fallback. The `--help-llm` version is stale (0.1.0 vs 0.2.0). The morning/evening integration described in the skill is aspirational. None of these are Sprint #14 regressions.
+Why not 10: the skill files themselves (`pomodoro-check/SKILL.md`, `agent-onboarding/SKILL.md`) are the primary entry point for agents using Claude Skills. These files do not document write commands. An agent using the `pomodoro-check` skill workflow would need to fall back to `--help` or `--help-llm` to discover write capabilities. Updating the skills is a documentation fix, not an architectural issue, but it is the gap between 9 and 10.
 
-### Code Organization (8/10, -1 regression)
+### Code Organization (9/10, +1 improvement)
 
-This is the primary regression in Sprint #14. Timer.tsx was 450~ lines at Sprint #8 and is now 567 lines. The growth comes from well-written but misplaced code:
+Sprint #15 resolved the Timer.tsx bloat issue from Sprint #14 by extracting audio code to `app/lib/sounds.ts`. The CLAUDE.md architecture tree now lists `sounds.ts` as a separate module. This was the primary P2 recommendation from the Sprint #14 review.
 
-**Audio synthesis (lines 31-100, ~70 lines):**
-```
-makeNote() — pure function, takes AudioContext + params
-playWorkCompleteSound() — composes makeNote calls
-playBreakEndSound() — composes makeNote calls
-playCompletionSound() — dispatches to the above + vibration
-```
-None of these reference React state, props, refs, or hooks. They are pure audio utilities that happen to live in a React component file. An `app/lib/sounds.ts` module would:
-- Make sounds independently testable (unit tests with mocked AudioContext)
-- Allow other components to reuse sounds in the future
-- Reduce Timer.tsx cognitive load for agents modifying timer behavior
+The new code added in Sprint #15 follows established patterns:
 
-**Wake Lock (lines 139-151, ~13 lines):**
-The `requestWakeLock` and `releaseWakeLock` functions use `wakeLockRef` which is defined inside the Timer component. This creates a coupling that could be cleanly abstracted into a `useWakeLock()` custom hook returning `{ request, release }` functions. The hook would own its own ref and cleanup.
+**`convex/http.ts`** (240 lines): The 3 POST handlers are structurally identical to the 4 GET handlers — authenticate, parse input, validate, call Convex function, respond with JSON. The CORS preflight loop at line 67 was correctly extended to include all 7 paths. The `authenticateRequest` helper is reused cleanly by all handlers. Body parsing with try-catch for malformed JSON is consistent across all 3 POST endpoints.
 
-**Why -1 and not -2:** The code within Timer.tsx is well-structured internally. Functions are named clearly. The `playCompletionSound(mode)` dispatcher cleanly separates work/break sounds. The wake lock calls are placed at exactly the right lifecycle points (start, pause, stop, completion, visibility change). The issue is file-level organization, not code quality.
+**`packages/apom/bin/apom.mjs`** (457 lines): Three new command functions (`cmdStart`, `cmdStop`, `cmdInterrupt`) follow the same structure as existing commands. The `apiPost` helper mirrors `apiCall`. Command aliases (`stop`/`complete`, `interrupt`/`cancel`) are handled cleanly at the dispatch level (line 446-448). The active session tracking in `~/.agent-pomodoro.json` uses the existing `loadConfig`/`saveConfig` infrastructure.
 
-### Test Coverage (7/10, -2 regression)
+**`convex/sessions.ts`**: The `start`, `complete`, and `interrupt` mutations are well-structured with `verifyUserId` auth checks, input validation, and clean Convex DB operations. No over-engineering.
 
-This is the largest regression. Sprint #14 shipped three features with zero test coverage:
+Why 9 and not 10: The `apiPost`/`apiCall` duplication in `apom.mjs` is a minor code smell (P2 finding). The `let body: any` typing in `http.ts` is pragmatic but imprecise. Neither is a structural problem.
 
-**What exists (21 tests, unchanged):**
-- `smoke.spec.ts` (6 tests): page loads, navigation
-- `timer.spec.ts` (11 tests): display, mode switching, start/pause/reset, keyboard shortcuts
-- `dashboard.spec.ts` (4 tests): period selector, stat cards
+### Test Coverage (9/10, +2 improvement)
 
-**What is missing after Sprint #14:**
+This is the most significant improvement in Sprint #15. The completion flow E2E gap — carried as a top recommendation through 9 sprint reviews — is now comprehensively covered.
 
-1. **Timer completion flow (P1 gap, now 14 sprints old):** No test runs the timer to 0. This means:
-   - `playCompletionSound()` is never invoked in tests
-   - The completion modal (`showCompletion` state) is never rendered in tests
-   - The `advanceAfterCompletion` flow (pomodoro counter increment, mode switch to break) is never verified
-   - `releaseWakeLock()` on completion is never called in tests
+**New coverage (12 tests in `timer-completion.spec.ts`):**
 
-   Playwright supports clock mocking (`page.clock.install()` + `page.clock.fastForward()`). A test could install a fake clock, start the timer, fast-forward 25 minutes, and verify the modal appears.
+| Test | What it validates |
+|------|------------------|
+| Work completion modal after 25min | Timer -> 0 triggers modal |
+| Save and Skip buttons visible | Modal has expected actions |
+| Clickable tags with toggle | Tag selection UI works, `bg-pomored` class toggles |
+| Skip advances to break (05:00) | Mode transition: work -> break |
+| Save advances to break (05:00) | Save path also transitions correctly |
+| Pomodoro counter increments | State: 0 done -> 1 done after completion |
+| Break auto-advances to work | No modal for breaks, auto-transition |
+| 4th session -> long break (15:00) | Full cycle: 4 work + 3 break sessions |
+| Escape skips modal | Keyboard shortcut: Escape |
+| Cmd+Enter saves | Keyboard shortcut: Meta+Enter |
+| No console errors (work completion) | Sound + wake lock graceful degradation |
+| No console errors (break completion) | Sound + wake lock graceful degradation |
 
-2. **Sound code has no test at any level:** No unit test for `makeNote`. No integration test for `playWorkCompleteSound`. No E2E verification that AudioContext is created. Web Audio in headless Chromium does work (it is supported), so a test could at minimum verify that `playCompletionSound("work")` does not throw.
+The graceful degradation tests (lines 208-259) are a smart approach to testing sound/wake lock: instead of trying to verify that Web Audio played a note (impossible in headless), they verify that the code paths execute without throwing errors. This validates the try-catch guards work correctly.
 
-3. **Wake Lock has no test at any level:** `navigator.wakeLock` is not available in headless Chromium by default, but the guard (`"wakeLock" in navigator`) means the code path simply skips. A test should verify that starting the timer does not throw a wake lock error in environments where the API is unavailable.
+The `startAndComplete` helper (lines 8-15) with the 500ms intermediate tick before the full fast-forward is a pattern worth documenting — it solves a real problem with Playwright clock mocking where `setInterval` callbacks don't fire if the clock jumps past them without ticking.
 
-**Why -2 and not -1:** Three new feature code paths were added, all untested, and the highest-value existing test gap (completion flow) was not addressed despite being recommended in every review since Sprint #5. The ratio of untested feature code to tested feature code has grown worse.
+**Total test inventory (33 tests):**
+- `smoke.spec.ts`: 6 tests (page loads, navigation)
+- `timer.spec.ts`: 11 tests (display, mode switching, start/pause/reset, keyboard)
+- `timer-completion.spec.ts`: 12 tests (completion flow, transitions, keyboard, degradation)
+- `dashboard.spec.ts`: 4 tests (period selector, stat cards)
 
-### Sprint Autonomy (8/10, unchanged)
+Why 9 and not 10: The 3 new POST API endpoints (`/api/sessions/start`, `/api/sessions/complete`, `/api/sessions/interrupt`) have no test coverage. These require a running Convex backend, so E2E testing in Playwright is not feasible without significant test infrastructure (mock Convex server or integration test harness). The CLI commands (`start`, `stop`, `interrupt`) are similarly untested — they make real HTTP calls. A mock-based unit test for the CLI would be possible with dependency injection on `fetch`, but the zero-dependency constraint makes this awkward.
 
-An agent starting Sprint #15 has a mixed experience:
+### Sprint Autonomy (9/10, +1 improvement)
 
-**What works:**
-- CLAUDE.md architecture section accurately lists all files (though Timer.tsx description is incomplete — no mention of sounds/wake lock)
-- `s.md` contains the Sprint #15 plan (agent write-back: start/stop via CLI + API)
-- Convex deployment names are documented
-- Build/test commands are documented and functional
-- Skills are documented with copy-paste bash commands
+CLAUDE.md is now accurately up to date for Sprint #15:
+- Architecture tree includes `sounds.ts` in `app/lib/`
+- `http.ts` description: "REST API: GET (status, stats, sessions) + POST (start, complete, interrupt)"
+- `apom.mjs` description: "Zero-dependency CLI: status/stats/sessions + start/stop/interrupt"
+- `timer-completion.spec.ts` listed with "(12 tests)"
+- Test count: "33 tests"
 
-**What creates friction:**
-- `s.md` says "Current Sprint: #13+" — an agent would need to infer Sprint #14 is done by reading the sprint plan list
-- Timer.tsx description in CLAUDE.md says "Core timer logic + UI + completion modal" without mentioning sounds, vibration, or wake lock — an agent modifying Timer.tsx for Sprint #15 would encounter unexpected code
-- The `--help-llm` version mismatch (0.1.0 vs 0.2.0) could confuse an agent checking CLI version compatibility
+The `--help-llm` version is correctly synced at 0.3.0. An agent reading `--help-llm` gets the complete command surface with types, defaults, and usage examples.
 
-**Why 8 and not 7:** Despite the stale counter, the project is still highly navigable. CLAUDE.md + `s.md` + skills give an agent 90% of what it needs. The gaps are friction, not blockers.
+An agent starting Sprint #16 (final polish + v1.0) has a clear path:
+1. Read `s.md` for Sprint #16 plan
+2. Read CLAUDE.md for architecture and commands
+3. Run `npm run test` to verify baseline
+4. Read previous reviews for P1/P2 findings to address
+
+Why 9 and not 10: `s.md` still says "Current Sprint: #14 (completed)" without Sprint #15 history. The skills do not document write commands. A Sprint #16 agent would discover these through CLAUDE.md and `--help-llm`, but the skill files would give an incomplete picture.
 
 ## Comparison with Previous Sprint
 
-| Subcategory | Sprint #6 | Sprint #7 | Sprint #8 | Sprint #14 | Delta (vs #8) |
-|-------------|-----------|-----------|-----------|------------|---------------|
-| CLI Buildability | 9 | 9 | 9 | 9 | 0 |
-| Skill Integration | 8 | 8 | 8 | 8 | 0 |
-| Code Organization | 8 | 9 | 9 | 8 | -1 |
-| Test Coverage | 7 | 9 | 9 | 7 | -2 |
-| Sprint Autonomy | 8 | 8 | 10 | 8 | -2 |
-| **Overall** | **8.0** | **8.6** | **9.0** | **8.0** | **-1.0** |
+| Subcategory | Sprint #8 | Sprint #14 | Sprint #15 | Delta (vs #14) |
+|-------------|-----------|------------|------------|-----------------|
+| CLI Buildability | 9 | 9 | 9 | 0 |
+| Skill Integration | 8 | 8 | 9 | +1 |
+| Code Organization | 9 | 8 | 9 | +1 |
+| Test Coverage | 9 | 7 | 9 | +2 |
+| Sprint Autonomy | 10 | 8 | 9 | +1 |
+| **Overall** | **9.0** | **8.0** | **9.0** | **+1.0** |
 
-Note: Overall is the arithmetic mean of the five subcategories. The drop from 9.0 to 8.0 is primarily driven by Test Coverage (-2) and Sprint Autonomy (-2, down from the exceptional 10/10 in Sprint #8).
+Note: The Sprint #14 review file listed the overall as 8.6 in the header but the subcategory arithmetic mean was 8.0. The table above uses the arithmetic mean (8.0) for consistency. Sprint #15 restores the score to the Sprint #8 high-water mark of 9.0.
 
-### What Moved the Needle (Downward)
+### What Moved the Needle (Upward)
 
-- **Test Coverage regression (-2):** Three features shipped with zero tests. The completion flow E2E test has been the top recommendation for 9 sprints running. Sprint #14 made this gap worse by adding more untested code paths.
+- **Test Coverage +2:** The 12-test `timer-completion.spec.ts` closes the single largest quality gap carried through 9 sprint reviews. The clock-mocking approach is correct and non-flaky. The graceful degradation tests validate error handling without needing browser audio capabilities.
 
-- **Code Organization regression (-1):** Timer.tsx crossed the complexity threshold. Audio synthesis code belongs in a utility module. The single-file approach worked at 400 lines; at 567 lines with 4 distinct concerns, it is a maintenance risk.
+- **Skill Integration +1:** Full read-write CLI surface. An agent can now drive the complete pomodoro lifecycle: check status, start a session, complete it with notes/tags, or interrupt it. The `--help-llm` schema is comprehensive and version-accurate.
 
-- **Sprint Autonomy regression (-2 from Sprint #8's 10):** Sprint #8's documentation overhaul brought Sprint Autonomy to a perfect 10. Sprint #14 let `s.md` counter go stale and did not update CLAUDE.md to reflect new features. This is the same documentation drift pattern that Sprints #3-#7 exhibited.
+- **Code Organization +1:** Audio extraction to `sounds.ts` resolved the Sprint #14 regression. New code in `http.ts` and `apom.mjs` follows established patterns without introducing new structural problems.
+
+- **Sprint Autonomy +1:** CLAUDE.md accurately reflects Sprint #15 state. Architecture tree, endpoint descriptions, CLI description, and test count are all current.
 
 ### What Held Steady
 
-- **CLI Buildability at 9/10:** Stable across 8 sprints. Browser API guards prevent build/SSR issues. No new dependencies.
-- **Skill Integration at 8/10:** Stable across 6 sprints. Agent-facing interfaces unchanged.
+- **CLI Buildability at 9/10:** Stable across 9 sprints. No new build complications.
 
-### Path Back to 9.0+
+### Path to 9.5+
 
-1. **Test Coverage -> 9/10:** Add completion flow E2E test using Playwright clock mocking. This single test would validate sounds-don't-throw, modal appears, save works, timer advances. Optionally add a unit test for `makeNote` / `playCompletionSound` to verify no throws. (+2 to Test Coverage, +0.4 to overall)
-
-2. **Code Organization -> 9/10:** Extract audio code to `app/lib/sounds.ts` and wake lock to `app/lib/wakeLock.ts` (or `useWakeLock` hook). Timer.tsx drops to ~450 lines. (+1 to Code Organization, +0.2 to overall)
-
-3. **Sprint Autonomy -> 9/10:** Update `s.md` counter to "Current Sprint: #14 (completed)" with Sprint #14 history entry. Update CLAUDE.md Timer.tsx description to include sounds/vibration/wake lock. Fix `--help-llm` version. (+1 to Sprint Autonomy, +0.2 to overall)
-
-All three fixes together: 9.0 + 0.4 + 0.2 + 0.2 = projected 8.8. The remaining gap to 9.0+ requires the CI-with-Convex improvement (CLI Buildability -> 10) or multi-user skill support (Skill Integration -> 9).
+1. **Skill files updated with write commands** -> Skill Integration 10/10 (+0.2 overall)
+2. **`s.md` sprint counter and history updated** -> Sprint Autonomy 10/10 (+0.2 overall)
+3. **API idempotency guard (reject duplicate active sessions)** -> improves agent reliability, indirect Test Coverage and Skill Integration uplift
+4. **CLI error output respects `--json` flag** -> Skill Integration improvement for automated agent callers
+5. **Extract `apiPost`/`apiCall` to shared `apiFetch`** -> Code Organization minor cleanup
 
 ## Recommendations (Priority Order)
 
-1. **Extract audio code to `app/lib/sounds.ts`** — move `makeNote`, `playWorkCompleteSound`, `playBreakEndSound`, `playCompletionSound`, and the `audioCtx` singleton. Timer.tsx imports and calls `playCompletionSound(mode)`. This is a mechanical refactor with zero behavior change.
+1. **Update `pomodoro-check/SKILL.md` and `agent-onboarding/SKILL.md` with write commands.** Add `agent-pomodoro start work 25`, `agent-pomodoro stop --notes "text" --tags "a,b"`, and `agent-pomodoro interrupt` to both skill files. For `pomodoro-check`, update the "Response patterns" to show actual commands the agent can run. For `agent-onboarding`, add a "Session Control" section to the Available Commands table.
 
-2. **Add completion flow E2E test** — 14th sprint where this is recommended. Use Playwright `page.clock.install()` + `page.clock.fastForward('25m')` or use a 1-second custom timer duration injected via URL param / test fixture. Verify: modal appears, tags are clickable, save advances to break mode.
+2. **Add server-side active session guard.** In `sessions.start` mutation, query for existing sessions by userId where `completed === false && interrupted === false && startedAt > (Date.now() - 4h)`. If found, reject with "Active session already exists (ID: xxx). Complete or interrupt it first." This prevents duplicate sessions from retry-happy agent callers.
 
-3. **Update `s.md`** — set "Current Sprint: #14", add Sprint #14 history entry (sounds, wake lock, PWA manifest), move Sprint #15 to "current."
+3. **Make CLI error output respect `--json` flag.** In `cmdStop`, `cmdInterrupt`, and `requireApiKey`, check for `--json` in process.argv before writing to stderr. When present, output `{"error": "message"}` instead of plain text. This is essential for agent callers that parse stdout/stderr as JSON.
 
-4. **Update CLAUDE.md Timer.tsx description** — change "Core timer logic + UI + completion modal" to "Core timer logic + UI + completion modal + sounds (Web Audio) + vibration + wake lock."
+4. **Deduplicate `apiCall`/`apiPost` into `apiFetch`.** Single function: `async function apiFetch(method, path, data)` with conditional Content-Type and body. Reduces ~25 lines of duplication and ensures error handling changes apply uniformly.
 
-5. **Fix `--help-llm` version** — sync `apom.mjs` line 183 to `"0.2.0"` matching `package.json`.
+5. **Update `s.md` with Sprint #15 completion.** Set "Current Sprint: #15 (completed)", add Sprint #15 history entry with scores, move Sprint #16 to current.
 
-6. **Add `console.debug` in catch blocks for dev mode** — `catch (e) { if (import.meta.env.DEV) console.debug('[audio]', e); }` in the four empty catches.
+6. **Add `--session-id` override to `stop` and `interrupt`.** Optional flag that bypasses local active session lookup. Useful for agents that track session IDs independently or when local state is corrupted.
 
-7. **Extract wake lock to `useWakeLock` hook** — lower priority than sounds extraction since wake lock is only ~13 lines, but completes the single-responsibility cleanup.
+7. **Add client-side duration validation to CLI.** In `cmdStart`, validate that duration is 1-120 before making the API call. Gives a clearer error than the API's generic 400 response.

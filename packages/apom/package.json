@@ -1,7 +1,7 @@
 {
   "name": "agent-pomodoro",
-  "version": "0.2.0",
-  "description": "CLI for AI agents to query Agent Pomodoro focus data",
+  "version": "0.3.0",
+  "description": "CLI for AI agents to query and control Agent Pomodoro focus sessions",
   "type": "module",
   "bin": {
     "agent-pomodoro": "./bin/apom.mjs"

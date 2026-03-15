@@ -67,12 +67,12 @@ convex/
 ├── schema.ts        # pomodoroSessions + apiKeys tables
 ├── sessions.ts      # CRUD mutations + queries + stats + agentSummary + activeUserId
 ├── apiKeys.ts       # API key CRUD + hash validation
-├── http.ts          # REST API endpoints (status, stats, sessions)
+├── http.ts          # REST API: GET (status, stats, sessions) + POST (start, complete, interrupt)
 ├── auth.config.ts   # Clerk JWT config
 └── tsconfig.json    # Convex-specific TS config
 
 packages/apom/       # CLI tool (npm install -g agent-pomodoro)
-├── bin/apom.mjs     # Zero-dependency CLI (Node 18+)
+├── bin/apom.mjs     # Zero-dependency CLI: status/stats/sessions + start/stop/interrupt
 └── package.json     # npm package config
 
 public/
@@ -81,9 +81,10 @@ public/
 └── icon-*.png       # PWA icons
 
 e2e/
-├── smoke.spec.ts       # Critical pages load (6 tests)
-├── timer.spec.ts       # Timer interaction + keyboard shortcuts (11 tests)
-└── dashboard.spec.ts   # Dashboard period selector + stats (4 tests)
+├── smoke.spec.ts              # Critical pages load (6 tests)
+├── timer.spec.ts              # Timer interaction + keyboard shortcuts (11 tests)
+├── timer-completion.spec.ts   # Completion flow, mode transitions, sounds (12 tests)
+└── dashboard.spec.ts          # Dashboard period selector + stats (4 tests)
 
 .claude/skills/
 ├── sprint/            # Sprint cycle (build → test → audit → PR)
@@ -98,7 +99,7 @@ e2e/
 - **Routes:** lowercase, React Router v7 file convention
 - **CSS:** Tailwind 4 with custom theme vars (pomored, breakgreen, surface)
 - **Font:** JetBrains Mono (monospace), Inter (sans)
-- **Tests:** Playwright E2E in `e2e/`, must pass before PR (21 tests)
+- **Tests:** Playwright E2E in `e2e/`, must pass before PR (33 tests)
 
 ## Quality Tracking
 

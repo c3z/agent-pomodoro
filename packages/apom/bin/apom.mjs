@@ -37,7 +37,7 @@ function getBaseUrl() {
 
 // ── API Client ──────────────────────────────────────────────────────
 
-async function apiCall(path) {
+function requireApiKey() {
   const apiKey = getApiKey();
   if (!apiKey) {
     console.error("Error: No API key configured.");
@@ -45,12 +45,44 @@ async function apiCall(path) {
     console.error("Or set APOM_API_KEY environment variable.");
     process.exit(1);
   }
+  return apiKey;
+}
 
+async function apiCall(path) {
+  const apiKey = requireApiKey();
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${path}`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    try {
+      const json = JSON.parse(body);
+      console.error(`Error ${res.status}: ${json.error || body}`);
+    } catch {
+      console.error(`Error ${res.status}: ${body}`);
+    }
+    process.exit(1);
+  }
+
+  return res.json();
+}
+
+async function apiPost(path, data) {
+  const apiKey = requireApiKey();
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}${path}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
   });
 
   if (!res.ok) {
@@ -139,6 +171,96 @@ async function cmdSessions(args) {
   }
 }
 
+async function cmdStart(args) {
+  const type = args[0] || "work";
+  if (!["work", "break", "longBreak"].includes(type)) {
+    console.error("Usage: agent-pomodoro start [work|break|longBreak] [minutes]");
+    process.exit(1);
+  }
+
+  const durationArg = args.find((a) => /^\d+$/.test(a));
+  const durationMinutes = durationArg
+    ? parseInt(durationArg)
+    : type === "work" ? 25 : type === "break" ? 5 : 15;
+
+  const data = await apiPost("/api/sessions/start", { type, durationMinutes });
+
+  // Track active session locally
+  const config = loadConfig();
+  config.activeSession = {
+    sessionId: data.sessionId,
+    type,
+    durationMinutes,
+    startedAt: Date.now(),
+  };
+  saveConfig(config);
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+  } else {
+    console.log(`Started ${type} session (${durationMinutes}min)`);
+    console.log(`Session: ${data.sessionId}`);
+  }
+}
+
+async function cmdStop(args) {
+  const config = loadConfig();
+  const active = config.activeSession;
+
+  if (!active) {
+    console.error("No active session. Start one with: agent-pomodoro start");
+    process.exit(1);
+  }
+
+  const notesIdx = args.indexOf("--notes");
+  const notes = notesIdx >= 0 ? args[notesIdx + 1] : undefined;
+
+  const tagsIdx = args.indexOf("--tags");
+  const tagsArg = tagsIdx >= 0 ? args[tagsIdx + 1] : undefined;
+  const tags = tagsArg
+    ? tagsArg.split(",").map((t) => t.trim()).filter(Boolean)
+    : undefined;
+
+  await apiPost("/api/sessions/complete", {
+    sessionId: active.sessionId,
+    notes,
+    tags,
+  });
+
+  const elapsed = Math.round((Date.now() - active.startedAt) / 60000);
+  delete config.activeSession;
+  saveConfig(config);
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify({ ok: true, type: active.type, elapsed }));
+  } else {
+    console.log(`Completed ${active.type} session (${elapsed}min elapsed)`);
+  }
+}
+
+async function cmdInterrupt(args) {
+  const config = loadConfig();
+  const active = config.activeSession;
+
+  if (!active) {
+    console.error("No active session to interrupt.");
+    process.exit(1);
+  }
+
+  await apiPost("/api/sessions/interrupt", {
+    sessionId: active.sessionId,
+  });
+
+  delete config.activeSession;
+  saveConfig(config);
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify({ ok: true, interrupted: active.type }));
+  } else {
+    console.log(`Interrupted ${active.type} session.`);
+  }
+}
+
 function cmdConfig(args) {
   const subCmd = args[0];
 
@@ -179,8 +301,8 @@ function cmdConfig(args) {
 function cmdHelpLlm() {
   const schema = {
     name: "agent-pomodoro",
-    version: "0.1.0",
-    description: "CLI for AI agents to query Agent Pomodoro focus/productivity data",
+    version: "0.3.0",
+    description: "CLI for AI agents to query and control Agent Pomodoro focus sessions",
     base_url: getBaseUrl(),
     auth: {
       type: "bearer",
@@ -232,6 +354,29 @@ function cmdHelpLlm() {
         parameters: { limit: { type: "integer", default: 20, max: 200 } },
       },
       {
+        name: "start",
+        description: "Start a new pomodoro session (creates it on server, tracks locally)",
+        usage: "agent-pomodoro start [work|break|longBreak] [minutes] [--json]",
+        endpoint: "POST /api/sessions/start",
+        parameters: {
+          type: { type: "string", default: "work", enum: ["work", "break", "longBreak"] },
+          durationMinutes: { type: "integer", default: 25 },
+        },
+        response_example: { sessionId: "abc123", type: "work", durationMinutes: 25 },
+      },
+      {
+        name: "stop",
+        description: "Complete the active session with optional notes and tags",
+        usage: "agent-pomodoro stop [--notes 'text'] [--tags 'code,deep-work'] [--json]",
+        endpoint: "POST /api/sessions/complete",
+      },
+      {
+        name: "interrupt",
+        description: "Interrupt (cancel) the active session",
+        usage: "agent-pomodoro interrupt [--json]",
+        endpoint: "POST /api/sessions/interrupt",
+      },
+      {
         name: "config",
         description: "Manage CLI configuration",
         subcommands: [
@@ -245,6 +390,8 @@ function cmdHelpLlm() {
       "Use --json flag for machine-readable output on any command",
       "Set APOM_API_KEY env var instead of config file for CI/agents",
       "Default period for stats is 7 days",
+      "Start + stop workflow: agent-pomodoro start work 25, then agent-pomodoro stop --notes 'done'",
+      "Active session ID is stored in ~/.agent-pomodoro.json",
     ],
   };
 
@@ -259,6 +406,9 @@ Usage:
   agent-pomodoro stats [days]        Detailed stats (default: 7 days)
   agent-pomodoro sessions today      Today's sessions
   agent-pomodoro sessions [limit]    Recent sessions (default: 20)
+  agent-pomodoro start [type] [min]  Start a session (default: work 25)
+  agent-pomodoro stop [--notes ...]  Complete active session
+  agent-pomodoro interrupt           Interrupt active session
   agent-pomodoro config set-key <k>  Set API key
   agent-pomodoro config set-url <u>  Set server URL
   agent-pomodoro config show         Show config
@@ -266,7 +416,9 @@ Usage:
   agent-pomodoro --help              This help
 
 Flags:
-  --json    Machine-readable JSON output
+  --json                Machine-readable JSON output
+  --notes "text"        Notes for stop command
+  --tags "a,b,c"        Tags for stop command (comma-separated)
 
 Env vars:
   APOM_API_KEY    API key (overrides config file)
@@ -290,6 +442,12 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdStats(args.slice(1));
 } else if (cmd === "sessions") {
   await cmdSessions(args.slice(1));
+} else if (cmd === "start") {
+  await cmdStart(args.slice(1));
+} else if (cmd === "stop" || cmd === "complete") {
+  await cmdStop(args.slice(1));
+} else if (cmd === "interrupt" || cmd === "cancel") {
+  await cmdInterrupt(args.slice(1));
 } else if (cmd === "config") {
   cmdConfig(args.slice(1));
 } else {
