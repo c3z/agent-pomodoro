@@ -1,87 +1,83 @@
-# Welcome to React Router!
+# Agent Pomodoro
 
-A modern, production-ready template for building full-stack React applications using React Router.
+Pomodoro timer designed to be monitored by AI agents. Track focus sessions, get held accountable by your AI assistant.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
-
-## Features
-
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
+## Quickstart (Human)
 
 ```bash
+git clone https://github.com/c3z/agent-pomodoro.git
+cd agent-pomodoro
 npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
 npm run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Open `http://localhost:5173`. Sign in with Clerk, start a pomodoro.
 
-## Building for Production
+## Quickstart (AI Agent)
 
-Create a production build:
-
-```bash
-npm run build
-```
-
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
+### 1. Install the CLI
 
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+npm install -g apom
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+### 2. Get an API key
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
+Go to Settings in the app and create an API key.
 
-### DIY Deployment
+### 3. Configure
 
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+```bash
+apom config set-key apom_your_key_here
 ```
 
-## Styling
+### 4. Query
 
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
+```bash
+apom status              # Quick summary
+apom stats 7             # Last 7 days
+apom sessions today      # Today's sessions
+apom --help-llm          # Full JSON schema for agents
+```
 
----
+All commands support `--json` for machine-readable output.
 
-Built with ❤️ using React Router.
+### REST API
+
+```bash
+curl -H "Authorization: Bearer apom_xxx" https://your-deployment.convex.site/api/status
+curl -H "Authorization: Bearer apom_xxx" https://your-deployment.convex.site/api/stats?days=7
+curl -H "Authorization: Bearer apom_xxx" https://your-deployment.convex.site/api/sessions/today
+curl -H "Authorization: Bearer apom_xxx" https://your-deployment.convex.site/api/sessions?limit=20
+```
+
+## Stack
+
+- **Frontend:** React Router 7 + Tailwind 4
+- **Backend:** Convex (real-time database + serverless functions)
+- **Auth:** Clerk
+- **Tests:** Playwright E2E
+- **CLI:** Node.js (zero dependencies)
+
+## Architecture
+
+```
+app/           → React frontend (routes, components)
+convex/        → Backend (schema, queries, mutations, HTTP API)
+packages/apom/ → CLI tool (npm package)
+e2e/           → Playwright E2E tests
+```
+
+## Development
+
+```bash
+npm run dev          # Dev server
+npm run build        # Production build
+npm run test         # E2E tests (21 tests)
+npm run typecheck    # TypeScript check
+npx convex dev       # Convex backend dev
+```
+
+## License
+
+MIT

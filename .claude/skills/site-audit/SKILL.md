@@ -2,7 +2,7 @@
 name: site-audit
 description: |
   Multi-perspective quality audit for Agent Pomodoro.
-  Runs 3 reviewer agents in parallel, each writes a review file.
+  Runs 4 reviewer agents in parallel, each writes a review file.
   Triggery: "site-audit", "audit", "oceń jakość".
 ---
 
@@ -13,7 +13,30 @@ Each reviewer writes their output to `docs/reviews/[slug]-review.md`.
 
 ## Reviewers
 
-### End-user (PRIMARY)
+### Agent Access (PRIMARY — 70% weight)
+`review-agent-access` → `docs/reviews/agent-access-review.md`
+
+Can an AI agent install, connect, query, and interpret Agent Pomodoro data?
+This is the main quality driver from Sprint #9 onwards.
+
+**Scores 5 subcategories 1-10:**
+- CLI Install & Config — can an agent run `npm install -g apom` and `apom config set-key`?
+- API Key Flow — can a user generate a key in Settings, copy it, configure the CLI?
+- Query & Interpret — does `apom status` / `apom stats` return clear, actionable data?
+- LLM Friendliness — does `apom --help-llm` give complete JSON schema with examples?
+- REST API — do HTTP endpoints work with curl + Bearer token auth?
+
+**Reads:** `packages/apom/bin/apom.mjs`, `packages/apom/package.json`, `convex/http.ts`, `convex/apiKeys.ts`, `app/routes/settings.tsx`, `.claude/skills/pomodoro-check/SKILL.md`
+
+**Tests to run:**
+```bash
+# CLI help works
+node packages/apom/bin/apom.mjs --help
+node packages/apom/bin/apom.mjs --help-llm
+node packages/apom/bin/apom.mjs config show
+```
+
+### End-user (10% weight — regression guard)
 `review-enduser` → `docs/reviews/enduser-review.md`
 
 c3z using this daily as a developer focus tool. Must feel natural, fast, satisfying.
@@ -23,11 +46,11 @@ c3z using this daily as a developer focus tool. Must feel natural, fast, satisfy
 - Timer UX — is starting/pausing/resetting smooth and satisfying?
 - Data Visibility — can I see my stats at a glance?
 - Mobile Usability — does it work on phone?
-- Agent Integration — can Claude query my usage easily?
+- Settings UX — is the API key management page clear and functional?
 
-**Reads:** `app/routes/home.tsx`, `app/routes/timer.tsx`, `app/components/Timer.tsx`, `app/components/Stats.tsx`, `app/components/SessionList.tsx`
+**Reads:** `app/routes/home.tsx`, `app/routes/timer.tsx`, `app/routes/settings.tsx`, `app/components/Timer.tsx`, `app/components/Stats.tsx`, `app/components/SessionList.tsx`
 
-### Developer Experience
+### Developer Experience (10% weight — regression guard)
 `review-devex` → `docs/reviews/devex-review.md`
 
 Agent building/extending this autonomously in sprint cycles.
@@ -41,7 +64,7 @@ Agent building/extending this autonomously in sprint cycles.
 
 **Reads:** `package.json`, `CLAUDE.md`, `playwright.config.ts`, `e2e/`, `convex/`, `.claude/skills/`
 
-### Performance
+### Performance (10% weight — regression guard)
 `review-perf` → `docs/reviews/perf-review.md`
 
 Timer must be precise. Laggy timer = unusable tool.
@@ -94,6 +117,7 @@ Each reviewer writes:
 ## Consolidated Score
 
 Average of all reviewer scores, weighted:
-- End-user: 50% (primary)
-- DevEx: 30%
-- Performance: 20%
+- Agent Access: 70% (primary)
+- End-user: 10% (regression guard)
+- DevEx: 10% (regression guard)
+- Performance: 10% (regression guard)
