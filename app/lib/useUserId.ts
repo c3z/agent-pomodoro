@@ -1,4 +1,4 @@
-import { useUser } from "@clerk/clerk-react";
+import { useUser } from "@clerk/react-router";
 
 const HAS_CLERK = !!(
   typeof window !== "undefined" &&
