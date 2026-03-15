@@ -15,7 +15,40 @@ description: |
 This skill lets Claude Code (Atropa) query c3z's Pomodoro usage and hold him accountable.
 Used proactively during morning routines, evening reviews, or when c3z seems distracted.
 
-## How to Check
+## How to Check (preferred: `apom` CLI)
+
+If `apom` is installed (`npm install -g apom`) and configured with an API key:
+
+### Quick status (recommended)
+```bash
+apom status
+```
+
+### Stats for period
+```bash
+apom stats 7        # last 7 days
+apom stats 30       # last 30 days
+apom stats 7 --json # machine-readable
+```
+
+### Today's sessions
+```bash
+apom sessions today
+```
+
+### Recent sessions
+```bash
+apom sessions 20
+```
+
+### LLM-friendly help
+```bash
+apom --help-llm    # full JSON schema for agents
+```
+
+## Fallback: Direct Convex queries
+
+If `apom` is not available, use direct Convex queries:
 
 ### Step 1: Get active userId
 ```bash
@@ -23,24 +56,14 @@ cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run
 ```
 Use the returned userId in all subsequent queries. If null, no sessions exist yet.
 
-### Quick check (last 7 days stats)
-```bash
-cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:stats '{"userId": "USER_ID", "sinceDaysAgo": 7}'
-```
-
-### Today's sessions
-```bash
-cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:todayByUser '{"userId": "USER_ID"}'
-```
-
-### Recent sessions
-```bash
-cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:listByUser '{"userId": "USER_ID", "limit": 20}'
-```
-
 ### Agent summary (recommended — returns pre-formatted text)
 ```bash
 cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:agentSummary '{"userId": "USER_ID"}'
+```
+
+### Quick check (last 7 days stats)
+```bash
+cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:stats '{"userId": "USER_ID", "sinceDaysAgo": 7}'
 ```
 
 ## Interpretation Rules

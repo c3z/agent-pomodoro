@@ -1,0 +1,299 @@
+#!/usr/bin/env node
+
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
+
+const CONFIG_PATH = join(homedir(), ".apomrc");
+const DEFAULT_URL = "https://efficient-wolf-51.eu-west-1.convex.site";
+
+// ── Config ──────────────────────────────────────────────────────────
+
+function loadConfig() {
+  try {
+    return JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveConfig(config) {
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
+}
+
+function getApiKey() {
+  const envKey = process.env.APOM_API_KEY;
+  if (envKey) return envKey;
+  const config = loadConfig();
+  return config.apiKey || null;
+}
+
+function getBaseUrl() {
+  const envUrl = process.env.APOM_URL;
+  if (envUrl) return envUrl;
+  const config = loadConfig();
+  return config.url || DEFAULT_URL;
+}
+
+// ── API Client ──────────────────────────────────────────────────────
+
+async function apiCall(path) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.error("Error: No API key configured.");
+    console.error("Run: apom config set-key <your-api-key>");
+    console.error("Or set APOM_API_KEY environment variable.");
+    process.exit(1);
+  }
+
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}${path}`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    try {
+      const json = JSON.parse(body);
+      console.error(`Error ${res.status}: ${json.error || body}`);
+    } catch {
+      console.error(`Error ${res.status}: ${body}`);
+    }
+    process.exit(1);
+  }
+
+  return res.json();
+}
+
+// ── Commands ────────────────────────────────────────────────────────
+
+async function cmdStatus(args) {
+  const data = await apiCall("/api/status");
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+  } else {
+    console.log(data.status);
+  }
+}
+
+async function cmdStats(args) {
+  const daysArg = args.find((a) => /^\d+d?$/.test(a));
+  const days = daysArg ? parseInt(daysArg) : 7;
+  const data = await apiCall(`/api/stats?days=${days}`);
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+  } else {
+    console.log(`Period: ${data.period}`);
+    console.log(`Sessions: ${data.completedSessions}/${data.totalWorkSessions} (${data.completionRate}% completion)`);
+    console.log(`Focus: ${data.totalFocusHours}h (${data.totalFocusMinutes}min)`);
+    console.log(`Streak: ${data.currentStreak} days`);
+    console.log(`Avg/day: ${data.avgSessionsPerDay}`);
+    if (data.hoursSinceLastSession !== null) {
+      console.log(`Last session: ${data.hoursSinceLastSession}h ago`);
+    }
+  }
+}
+
+async function cmdSessions(args) {
+  const subCmd = args[0];
+
+  if (subCmd === "today") {
+    const data = await apiCall("/api/sessions/today");
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      if (data.sessions.length === 0) {
+        console.log("No sessions today.");
+      } else {
+        for (const s of data.sessions) {
+          const time = new Date(s.startedAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+          const status = s.completed ? "done" : s.interrupted ? "interrupted" : "active";
+          const tags = s.tags?.length ? ` [${s.tags.join(", ")}]` : "";
+          console.log(`${time} ${s.durationMinutes}min ${s.type} (${status})${tags}`);
+        }
+      }
+    }
+  } else {
+    const limitArg = args.find((a) => /^\d+$/.test(a));
+    const limit = limitArg ? parseInt(limitArg) : 20;
+    const data = await apiCall(`/api/sessions?limit=${limit}`);
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      if (data.sessions.length === 0) {
+        console.log("No sessions found.");
+      } else {
+        for (const s of data.sessions) {
+          const date = new Date(s.startedAt).toLocaleDateString("pl-PL");
+          const time = new Date(s.startedAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+          const status = s.completed ? "done" : s.interrupted ? "interrupted" : "active";
+          const tags = s.tags?.length ? ` [${s.tags.join(", ")}]` : "";
+          console.log(`${date} ${time} ${s.durationMinutes}min ${s.type} (${status})${tags}`);
+        }
+      }
+    }
+  }
+}
+
+function cmdConfig(args) {
+  const subCmd = args[0];
+
+  if (subCmd === "set-key") {
+    const key = args[1];
+    if (!key) {
+      console.error("Usage: apom config set-key <api-key>");
+      process.exit(1);
+    }
+    const config = loadConfig();
+    config.apiKey = key;
+    saveConfig(config);
+    console.log(`API key saved to ${CONFIG_PATH}`);
+  } else if (subCmd === "set-url") {
+    const url = args[1];
+    if (!url) {
+      console.error("Usage: apom config set-url <convex-site-url>");
+      process.exit(1);
+    }
+    const config = loadConfig();
+    config.url = url;
+    saveConfig(config);
+    console.log(`URL saved to ${CONFIG_PATH}`);
+  } else if (subCmd === "show") {
+    const config = loadConfig();
+    const apiKey = getApiKey();
+    console.log(`Config: ${CONFIG_PATH}`);
+    console.log(`URL: ${getBaseUrl()}`);
+    console.log(`API Key: ${apiKey ? apiKey.slice(0, 12) + "..." : "(not set)"}`);
+  } else {
+    console.log("Usage:");
+    console.log("  apom config set-key <api-key>  Set API key");
+    console.log("  apom config set-url <url>      Set Convex site URL");
+    console.log("  apom config show               Show current config");
+  }
+}
+
+function cmdHelpLlm() {
+  const schema = {
+    name: "apom",
+    version: "0.1.0",
+    description: "CLI for AI agents to query Agent Pomodoro focus/productivity data",
+    base_url: getBaseUrl(),
+    auth: {
+      type: "bearer",
+      header: "Authorization: Bearer <apom_api_key>",
+      setup: "apom config set-key <key>",
+      env_var: "APOM_API_KEY",
+    },
+    commands: [
+      {
+        name: "status",
+        description: "Quick summary: today's pomodoros, week stats, streak, last session",
+        usage: "apom status [--json]",
+        endpoint: "GET /api/status",
+        response_example: {
+          status: "Today: 3 pomodoros completed\nWeek: 12/15 sessions (80% completion), 5.0h focus\nStreak: 3 days\nLast session: 1.2h ago",
+        },
+      },
+      {
+        name: "stats",
+        description: "Detailed statistics for a period",
+        usage: "apom stats [days] [--json]",
+        endpoint: "GET /api/stats?days=N",
+        parameters: { days: { type: "integer", default: 7, max: 3650 } },
+        response_example: {
+          period: "7d",
+          totalWorkSessions: 15,
+          completedSessions: 12,
+          interruptedSessions: 3,
+          completionRate: 80,
+          totalFocusMinutes: 300,
+          totalFocusHours: 5.0,
+          currentStreak: 3,
+          lastSessionAt: 1710500000000,
+          hoursSinceLastSession: 1.2,
+          avgSessionsPerDay: 2.1,
+        },
+      },
+      {
+        name: "sessions today",
+        description: "List today's pomodoro sessions",
+        usage: "apom sessions today [--json]",
+        endpoint: "GET /api/sessions/today",
+      },
+      {
+        name: "sessions",
+        description: "List recent sessions",
+        usage: "apom sessions [limit] [--json]",
+        endpoint: "GET /api/sessions?limit=N",
+        parameters: { limit: { type: "integer", default: 20, max: 200 } },
+      },
+      {
+        name: "config",
+        description: "Manage CLI configuration",
+        subcommands: [
+          { name: "set-key", usage: "apom config set-key <api-key>" },
+          { name: "set-url", usage: "apom config set-url <convex-site-url>" },
+          { name: "show", usage: "apom config show" },
+        ],
+      },
+    ],
+    tips: [
+      "Use --json flag for machine-readable output on any command",
+      "Set APOM_API_KEY env var instead of config file for CI/agents",
+      "Default period for stats is 7 days",
+    ],
+  };
+
+  console.log(JSON.stringify(schema, null, 2));
+}
+
+function cmdHelp() {
+  console.log(`apom — Agent Pomodoro CLI
+
+Usage:
+  apom status              Quick summary (today, week, streak)
+  apom stats [days]        Detailed stats (default: 7 days)
+  apom sessions today      Today's sessions
+  apom sessions [limit]    Recent sessions (default: 20)
+  apom config set-key <k>  Set API key
+  apom config set-url <u>  Set server URL
+  apom config show         Show config
+  apom --help-llm          JSON schema for AI agents
+  apom --help              This help
+
+Flags:
+  --json    Machine-readable JSON output
+
+Env vars:
+  APOM_API_KEY    API key (overrides config file)
+  APOM_URL        Server URL (overrides config file)
+
+Config: ~/.apomrc`);
+}
+
+// ── Main ────────────────────────────────────────────────────────────
+
+const args = process.argv.slice(2);
+const cmd = args[0];
+
+if (!cmd || cmd === "--help" || cmd === "-h") {
+  cmdHelp();
+} else if (cmd === "--help-llm") {
+  cmdHelpLlm();
+} else if (cmd === "status") {
+  await cmdStatus(args.slice(1));
+} else if (cmd === "stats") {
+  await cmdStats(args.slice(1));
+} else if (cmd === "sessions") {
+  await cmdSessions(args.slice(1));
+} else if (cmd === "config") {
+  cmdConfig(args.slice(1));
+} else {
+  console.error(`Unknown command: ${cmd}`);
+  console.error("Run: apom --help");
+  process.exit(1);
+}
