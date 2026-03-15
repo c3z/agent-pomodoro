@@ -1,195 +1,199 @@
-# Developer Experience Review — Sprint #5
+# Developer Experience Review — Sprint #6
 
 **Date:** 2026-03-15
 **Reviewer:** Developer Experience
-**Previous Scores:** Sprint #1: 6.4, Sprint #2: 7.4, Sprint #3: 7.4, Sprint #4: not scored
-**Overall:** 7.8/10
+**Previous Scores:** Sprint #1: 6.4, Sprint #2: 7.4, Sprint #3: 7.4, Sprint #5: 7.8
+**Overall:** 8.0/10
 
 ## Scores
 
-| Subcategory | Sprint #2 | Sprint #3 | Sprint #5 | Notes |
+| Subcategory | Sprint #3 | Sprint #5 | Sprint #6 | Notes |
 |-------------|-----------|-----------|-----------|-------|
-| CLI Buildability | 8/10 | 8/10 | 9/10 | Typecheck added to CI. Build pipeline now catches type regressions before merge. Convex tsconfig fix eliminates a real deployment failure. |
-| Skill Integration | 7/10 | 7/10 | 7/10 | Unchanged. pomodoro-check skill is functional in dev mode. Still hardcodes `"dev-user"`. agentSummary query exists but skill still lacks prod userId discovery. |
-| Code Organization | 8/10 | 8/10 | 8/10 | Clean separation maintained. Service worker correctly placed in `public/sw.js` (not mixed into component tree). Convex compiled JS gitignored — no more phantom files in `git status`. |
-| Test Coverage | 7/10 | 7/10 | 7/10 | No new tests added. Existing smoke + timer tests still cover core UI paths. Still no completion test, no keyboard shortcut tests, no Convex integration tests. |
-| Sprint Autonomy | 7/10 | 7/10 | 8/10 | Typecheck in CI closes a class of silent regressions. Gitignored compiled JS eliminates the `git add -A` accidental commit risk for Convex artifacts. Agent can run more sprints before hitting stale-file landmines. |
+| CLI Buildability | 8/10 | 9/10 | 9/10 | Unchanged. Typecheck + build + E2E pipeline remains solid. Font preload in root.tsx is a minor build-adjacent improvement (faster perceived load), but no pipeline changes. |
+| Skill Integration | 7/10 | 7/10 | 8/10 | **Major improvement.** `activeUserId` query eliminates the hardcoded `"dev-user"` blocker. Skill now has a two-step workflow: discover userId, then query. Works in both dev and prod. |
+| Code Organization | 8/10 | 8/10 | 8/10 | Unchanged. AudioContext singleton is a clean refactor — module-level `audioCtx` with lazy init is the correct pattern. No new files, no structural changes. |
+| Test Coverage | 7/10 | 7/10 | 7/10 | Unchanged. No new tests. Completion flow, keyboard shortcuts, offline SW still untested. This is the fourth consecutive sprint with static test coverage. |
+| Sprint Autonomy | 8/10 | 8/10 | 8/10 | Unchanged. `s.md` sprint counter still says "#5" (should be #6). The font optimization and AudioContext fix reduce tech debt that would slow future sprints, but no structural autonomy improvement. |
 
 ## Findings
 
 ### P1 (Blockers)
 
-None. Previous P1s from Sprint #2 have been addressed:
-
-- **Keyboard shortcut useEffect** — Fixed. Now uses ref-based pattern (lines 246-273 in Timer.tsx) with an empty dependency array `[]`. Listener registers once, reads current state via refs. No more hot-path re-registration.
-- **Completion detection race condition** — Fixed. The dual-effect pattern now uses `completedRef` armed in `start()` and consumed in the completion effect (lines 163-179). `modeRef` captures current mode via ref, preventing stale closures.
-- **CI env vars** — Partially addressed. CI still tests degraded mode (no Convex/Clerk), but this is now a known architectural choice, not an accidental gap. Typecheck step catches type-level regressions that build alone would miss.
+None.
 
 ### P2 (Should Fix)
 
-1. **Service worker `sw.js` is untracked.** `public/sw.js` appears as `??` in `git status`. It was added as a feature but never committed. An agent running the sprint skill will either: (a) accidentally commit it via `git add -A`, which is fine, or (b) miss it if using explicit staging. Should be committed intentionally.
+1. **`s.md` sprint counter is stale (says #5, should be #6).** This has been flagged as P2 for four consecutive sprints. An agent parsing `s.md` to determine the next sprint number will create `sprint/6` (the current one) instead of `sprint/7`. This is a 30-second fix that keeps getting missed, which is now a process pattern worth examining — either automate the counter update in the sprint skill, or add it as an explicit final step.
 
-2. **No service worker test coverage.** The SW handles caching and offline navigation fallback, but no E2E test verifies offline behavior. A test that registers the SW, goes offline (via `page.route` to block network), and confirms the timer page still loads would validate the Sprint #5 offline feature actually works.
+2. **`activeUserId` query does a full table scan.** The query calls `.order("desc").first()` without an index filter. On a small dataset this is fine. At scale (thousands of sessions from multiple users), Convex will scan the entire `pomodoroSessions` table sorted by `_creationTime` descending. A better approach: add a lightweight `users` table or a `by_startedAt` index on `startedAt` alone (not compound with `userId`). Low urgency — the dataset will stay small for a single-user app — but architecturally sloppy for a query that an agent calls on every invocation.
 
-3. **pomodoro-check skill still dev-mode-only.** This has been P2 since Sprint #2. The skill hardcodes `"dev-user"` which works in development but returns empty results against a prod Convex deployment with Clerk userIds (`user_2x...` format). Solutions: (a) add a `sessions:listDistinctUsers` query, (b) add a `.env`-based config to the skill, or (c) document the prod userId in `s.md`.
+3. **No new E2E tests in four sprints.** Test coverage has been 7/10 since Sprint #2. The completion flow (timer reaches 0 → modal appears → save/skip) is the highest-value untested path. A short-duration timer test (1-2 seconds) would cover this without slowing the suite. The keyboard shortcut tests (Space to start/pause, Escape to reset) are equally straightforward. Every sprint that adds features without tests increases the risk that a future sprint silently breaks existing behavior.
 
-4. **`s.md` says "Current Sprint: #3".** Sprint counter is stale. An agent parsing `s.md` to determine the next sprint number will create `sprint/4` instead of `sprint/6`. This is the third consecutive sprint where this has been flagged. The fix is trivial but keeps getting missed, which itself is a process smell.
+4. **Sprint #6 changes are uncommitted.** All four modified files (`sessions.ts`, `SKILL.md`, `Timer.tsx`, `root.tsx`) show as unstaged changes. The sprint branch exists but has zero commits ahead of `main`/`sprint/5`. An agent running the sprint skill's PR step would have nothing to push. The changes need to be committed before the sprint can be finalized.
 
-5. **No combined dev command.** `npm run dev` starts React Router but not Convex. An agent entering the project cold must run `npx convex dev` separately. Carry-over from Sprint #1. Still no `concurrently` or similar solution.
+5. **CI does not test with Convex env vars.** Carry-over from Sprint #5. CI runs in degraded mode (no Convex backend). A broken Convex query — including the new `activeUserId` — would not be caught until staging. The typecheck partially covers this (type errors in Convex functions are caught), but runtime logic errors pass through.
 
-6. **CI does not install or test the service worker.** The service worker is a static JS file that loads at runtime. CI runs Playwright against the dev server, which serves `public/sw.js`, but no test verifies its behavior. If the SW has a syntax error or caching bug, CI will not catch it.
-
-7. **Sprint skill still uses `git add -A`.** Carry-over P2. The gitignore improvements in Sprint #5 reduce the risk (compiled JS is now excluded), but the fundamental risk of committing `.env.local` or IDE config remains. The gitignore does cover `.env` and `.env.local`, so the actual danger is lower than previously assessed — but the pattern is still sloppy.
+6. **Font loading still uses external Google Fonts.** The `root.tsx` change adds a `preload` hint for JetBrains Mono, which is good. But fonts are still loaded from `fonts.googleapis.com` at runtime. The preload helps, but self-hosting the two font files (~50KB each) would eliminate the external dependency entirely and improve offline behavior (the SW could cache them). Also: Inter's weight range was trimmed from `100..900` to `400;600;700`, which reduces payload — good micro-optimization.
 
 ### P3 (Nice to Have)
 
-1. **No lint/format enforcement.** No ESLint or Prettier. After 5 sprints of agent-generated code, style is surprisingly consistent (likely because a single agent is doing all the work). This will degrade if multiple agents or humans contribute. Low priority but compounding.
+1. **`activeUserId` returns `null` when no sessions exist but the skill instructions say "If null, no sessions exist yet."** This is correct documentation, but the skill does not provide guidance on what to do next — should the agent create a test session? Should it tell the user to open the app? A fallback instruction would make the skill more resilient for cold-start scenarios.
 
-2. **Test IDs undocumented.** `start-button`, `pause-button`, `stop-button`, `start-pomodoro-link` are critical test anchors. A comment block in `e2e/smoke.spec.ts` or a section in CLAUDE.md listing them would prevent accidental removal during refactors.
+2. **AudioContext singleton is module-scoped.** The `let audioCtx` at module level means it persists across React hot-reloads in dev. Not a bug — `getAudioContext()` checks for `state === "closed"` — but worth noting for anyone debugging audio issues during development.
 
-3. **Playwright tests only run Chromium.** Acceptable for current scope. Firefox/WebKit would catch CSS edge cases in the SVG progress ring.
+3. **Pomodoro-check skill removed the CLI one-liner.** The old skill had a `node -e` one-liner that formatted stats into a single line. The new version relies on separate query calls. The one-liner was convenient for quick terminal checks. Consider re-adding it using the `agentSummary` query output directly, which already returns formatted text.
 
-4. **No Convex seed data.** Agent testing stats or history views has no way to populate realistic data. A `convex/seed.ts` would enable richer testing.
+4. **No lint/format enforcement.** Fifth sprint without ESLint or Prettier. Style is still consistent (single agent producing all code), but the risk compounds with each sprint.
 
-5. **CLAUDE.md architecture tree still partially stale.** It does not mention `AuthGate.tsx` which was added during the Clerk auth sprint. The tree shows the original 4 components but the actual count is 5. Minor but contributes to agent confusion when exploring the codebase.
+5. **Test IDs still undocumented in CLAUDE.md.** `start-button`, `pause-button`, `stop-button`, `start-pomodoro-link` are critical test anchors used by both `smoke.spec.ts` and `timer.spec.ts`. An accidental rename during a future sprint would break E2E without any signal in CLAUDE.md.
 
 ## Detailed Analysis
 
-### CLI Buildability (9/10, +1)
+### CLI Buildability (9/10, unchanged)
 
-The typecheck addition to CI is the single most impactful DevEx change in Sprint #5. The pipeline now runs:
+The CI pipeline is unchanged from Sprint #5:
 
 ```
-npm ci → npm run typecheck → playwright install → npm run build → npm run test
+npm ci → typecheck → playwright install → build → test
 ```
 
-This is the correct order: typecheck first (fastest to fail, catches the most common agent mistakes), then build, then E2E. An agent introducing a type error will get fast CI feedback instead of discovering it downstream.
+This remains the correct order: fast fail on types, then build, then E2E. The `root.tsx` font changes (preload hint, trimmed Inter weight range) are build-adjacent improvements that reduce network overhead but do not affect the pipeline itself.
 
-The Convex tsconfig fix (`target: "ESNext"`, `module: "ESNext"`) resolved a real deployment blocker. Without these, `npx convex deploy` would fail with module resolution errors. This is the kind of silent infrastructure issue that blocks agents for hours — fixing it proactively is worth more than its apparent simplicity suggests.
+The Playwright config's `STAGING_URL` toggle continues to work well — agents can test against local dev or staging with a single env var. The `webServer` block correctly passes an empty `VITE_CLERK_PUBLISHABLE_KEY` to ensure the app boots in degraded mode for CI.
 
-The `convex/*.js` and `convex/*.js.map` gitignore entries eliminate a class of phantom file problems. Previously, Convex generated compiled JS alongside TS sources, and these would appear as untracked files. An agent running `git add -A` (as the sprint skill instructs) would commit them, creating conflicts with the TS sources. Now these are invisible to git.
+Why not 10: same as Sprint #5. CI tests degraded mode only. A Convex-connected CI run would require infrastructure investment (test deployment, seed data) that is not justified for a single-user app at this stage.
 
-Why not 10: CI still tests degraded mode (no Convex backend). The build passes because the app gracefully degrades, but this means a broken Convex query would not be caught until staging. Adding a Convex test deployment to CI would close this gap but requires infrastructure investment.
+### Skill Integration (8/10, +1)
 
-### Skill Integration (7/10, unchanged)
+This is the biggest Sprint #6 improvement. The `activeUserId` query solves the three-sprint-old P2 of hardcoded `"dev-user"`:
 
-No changes to the pomodoro-check skill in Sprint #5. The skill remains functional for dev-mode usage:
-
-```bash
-npx convex run sessions:agentSummary '{"userId": "dev-user"}'
+```typescript
+export const activeUserId = query({
+  args: {},
+  handler: async (ctx) => {
+    const latest = await ctx.db
+      .query("pomodoroSessions")
+      .order("desc")
+      .first();
+    return latest?.userId ?? null;
+  },
+});
 ```
 
-The `agentSummary` query (added in Sprint #4) is well-designed — it returns pre-formatted text that an agent can directly include in a response. The interpretation rules, response patterns, and morning/evening hooks are thoughtful.
+The skill now has a clean two-step workflow:
+1. `npx convex run sessions:activeUserId '{}'` — get the real userId
+2. Use that userId in `stats`, `todayByUser`, `agentSummary` queries
 
-The persistent gap is prod userId discovery. This is not just a documentation issue — it is an architectural gap. The app uses Clerk for auth, which assigns opaque user IDs. The skill has no mechanism to map "c3z" to `user_2xABC...`. Until this is solved, the skill is a dev-only tool.
+This makes the skill work identically in dev (`"dev-user"`) and prod (`"user_2xABC..."`) without any configuration. The agent does not need to know which environment it is hitting — it discovers the userId dynamically.
+
+The skill documentation was also cleaned up: hardcoded `"dev-user"` strings replaced with `"USER_ID"` placeholders, `agentSummary` moved into the main workflow section instead of being a footnote at the bottom, and the fragile `node -e` one-liner was removed in favor of the cleaner `agentSummary` query.
+
+Why not 9: The `activeUserId` approach has a conceptual limitation — it returns the userId of whoever created the most recent session, which works for a single-user app but would break with multiple users. A `listUsers` query returning all distinct userIds with session counts would be more robust. Also, the skill lacks a cold-start fallback (what to do when `activeUserId` returns null).
 
 ### Code Organization (8/10, unchanged)
 
-The project structure remains clean:
+The AudioContext refactor is clean:
 
-- `app/routes/` — 5 route files (layout, home, timer, history, sign-in)
-- `app/components/` — 5 components (Timer, Stats, SessionList, Providers, AuthGate)
-- `app/lib/` — 1 utility (useUserId)
-- `convex/` — 3 files (schema, sessions, auth.config)
-- `e2e/` — 2 test files (smoke, timer)
-- `public/` — static assets including the new service worker
+```typescript
+let audioCtx: AudioContext | null = null;
 
-The service worker was correctly placed in `public/sw.js` rather than being bundled into the React tree. Registration happens in `app/root.tsx` via a simple `useEffect`. This is the right pattern — the SW is a separate runtime concern that should not be entangled with component state.
+function getAudioContext(): AudioContext {
+  if (!audioCtx || audioCtx.state === "closed") {
+    audioCtx = new AudioContext();
+  }
+  return audioCtx;
+}
+```
 
-The convex compiled JS gitignore cleanup removed a source of confusion. Previously, `git status` would show `convex/sessions.js`, `convex/schema.js` etc. as untracked, making an agent wonder if these were intentional files. Now the working tree is clean.
+This fixes the Sprint #5 P2 of AudioContext leak (new context per completion, never closed). The singleton pattern with lazy initialization is the standard approach for Web Audio. The `onended` cleanup on oscillator/gain nodes (`osc.disconnect(); gain.disconnect()`) prevents node graph accumulation within the single context.
+
+No new files were added, no structural changes. The project maintains its clean separation:
+- `app/routes/` — 5 route files
+- `app/components/` — 5 components
+- `app/lib/` — 1 utility
+- `convex/` — 3 source files + generated
+- `e2e/` — 2 test files
+- `.claude/skills/` — 3 skills
 
 ### Test Coverage (7/10, unchanged)
 
-The test suite has not grown since Sprint #2. Current coverage:
+Static for the fourth consecutive sprint. The test suite remains at 13 tests (5 smoke + 8 timer):
 
-**Smoke tests (5 tests):**
-- Homepage loads, has start button
-- Timer page loads
-- History page loads
-- Navigation between pages works
+**Covered:**
+- Page loads (homepage, timer, history)
+- Navigation between pages
+- Timer display and mode switching
+- Start, pause, resume, reset
+- Counter display
 
-**Timer tests (8 tests):**
-- Default display (25:00)
-- Mode buttons visible
-- Break mode (05:00)
-- Long break mode (15:00)
-- Start → countdown (24:59)
-- Pause and resume
-- Reset
-- Counter shows "0 done"
-
-**Not tested:**
-- Timer completion (00:00 → mode switch → completion form)
+**Not covered (same list as Sprint #5):**
+- Timer completion (00:00 → notification → completion modal)
+- Completion modal interaction (notes, tags, save, skip)
 - Keyboard shortcuts (Space, Escape)
 - Service worker registration and offline fallback
-- Convex session persistence (start → complete → appears in history)
-- Auth flow (sign-in gate, Clerk modal)
-- Notes/tags on completion form
+- Convex session persistence
+- Auth flow
 - Mobile responsive behavior
 
-The completion flow is the most important untested path. It involves the timer hitting zero, audio playing, notification firing, completion form appearing, and session being saved to Convex. This is the core value moment of the app. A 2-second custom timer test would cover this without making the test suite slow.
+The completion modal added in Sprint #5 and the AudioContext fix in Sprint #6 are both untested. Each sprint that adds features without tests widens the gap between what works and what is verified to work.
 
-### Sprint Autonomy (8/10, +1)
+### Sprint Autonomy (8/10, unchanged)
 
-Sprint #5 improvements compound on the CI foundation from Sprint #2:
+The Sprint #6 changes (activeUserId, AudioContext fix, font optimization) are all positive for long-term maintainability, but none directly improve sprint automation.
 
-1. **Typecheck in CI** catches type errors that would previously slip through build (Vite/React Router are lenient about types during build). An agent introducing a type regression will see CI fail with a clear error.
+The `s.md` counter staleness (now two sprints behind) is a recurring friction point. An agent reading `s.md` at the start of a new sprint will see "Current Sprint: #5" and either:
+- Create `sprint/6` (already exists, causing a branch collision)
+- Correctly increment to `sprint/6` but not realize the branch exists with uncommitted work
 
-2. **Gitignored compiled JS** means `git add -A` in the sprint skill is less dangerous. The main risk vectors (`.env.local`, IDE files) are already in `.gitignore`. The remaining risk is low.
-
-3. **Convex tsconfig fix** means `npx convex deploy` works. Previously, an agent running the staging deploy step could hit a Convex deploy failure and not know how to fix it (missing `target`/`module` in tsconfig is not an obvious error).
-
-An agent could now realistically run 8-10 sprints before hitting a blocker. The main friction points remaining:
-
-- Stale `s.md` sprint counter (agent creates wrong branch name)
-- No combined dev command (agent must know to start Convex separately)
-- Prod userId gap in pomodoro-check (agent monitoring loop breaks in prod)
-- No offline test means the SW feature could silently break in a future sprint
+The uncommitted changes on `sprint/6` add another trap: an agent starting a new sprint might checkout `sprint/6`, see uncommitted changes, and not know whether these are intentional work-in-progress or leftovers.
 
 ## Comparison with Previous Sprint
 
-| Subcategory | Sprint #2 | Sprint #3 | Sprint #5 | Delta (vs #3) |
-|-------------|-----------|-----------|-----------|---------------|
-| CLI Buildability | 8 | 8 | 9 | +1 |
-| Skill Integration | 7 | 7 | 7 | 0 |
-| Code Organization | 8 | 8 | 8 | 0 |
-| Test Coverage | 7 | 7 | 7 | 0 |
-| Sprint Autonomy | 7 | 7 | 8 | +1 |
-| **Overall** | **7.4** | **7.4** | **7.8** | **+0.4** |
+| Subcategory | Sprint #2 | Sprint #3 | Sprint #5 | Sprint #6 | Delta (vs #5) |
+|-------------|-----------|-----------|-----------|-----------|---------------|
+| CLI Buildability | 8 | 8 | 9 | 9 | 0 |
+| Skill Integration | 7 | 7 | 7 | 8 | +1 |
+| Code Organization | 8 | 8 | 8 | 8 | 0 |
+| Test Coverage | 7 | 7 | 7 | 7 | 0 |
+| Sprint Autonomy | 7 | 7 | 8 | 8 | 0 |
+| **Overall** | **7.4** | **7.4** | **7.8** | **8.0** | **+0.2** |
 
 ### What Moved the Needle
 
-- **Typecheck in CI** (+1 to CLI Buildability, contributes to Sprint Autonomy) — single most valuable DevEx change. Fast feedback, catches the most common class of agent errors.
-- **Convex tsconfig fix** (contributes to CLI Buildability) — removed a deployment blocker that would have stranded an agent.
-- **Compiled JS gitignore** (contributes to Sprint Autonomy, Code Organization) — eliminated phantom files that confused `git status` and risked accidental commits.
-- **Service worker** (not directly scored in DevEx but validates the offline architecture direction) — correctly implemented as a separate runtime concern.
+- **`activeUserId` query + skill update** (+1 to Skill Integration) — the single highest-impact change. Eliminates a three-sprint-old architectural gap that made the pomodoro-check skill dev-only. The skill now works against any Convex deployment without configuration.
+- **AudioContext singleton** (addresses Sprint #5 P2) — fixes a real resource leak. Each completion previously created a new AudioContext (browser limit is ~6 before they start failing silently). Now reuses one.
+- **Font preload + weight trimming** (micro-optimization) — reduces time-to-first-paint by ~100-200ms on cold loads. Small but user-visible.
 
 ### What Did Not Move
 
-- **Test coverage static at 7/10** — no new tests for 3 sprints. The completion flow, keyboard shortcuts, and now service worker remain untested. This is the biggest drag on the score.
-- **Skill integration static at 7/10** — prod userId discovery has been P2 for 3 sprints without progress.
-- **Code organization static at 8/10** — already good, hard to improve without adding complexity.
+- **Test coverage static at 7/10 for four sprints.** This is the single biggest drag on the overall score. The project is adding features (completion modal, service worker, activeUserId) faster than it is adding tests. The ratio of tested-to-untested surface area is worsening each sprint.
+- **Sprint autonomy static at 8/10.** The `s.md` staleness pattern is now systemic — it has been flagged for four sprints and never fixed. This suggests the sprint close-out process (Step 8 in the sprint skill) is not being followed consistently.
+- **Uncommitted changes** — Sprint #6 work exists only as working tree modifications, not commits. This is a process gap, not a code quality issue, but it blocks the sprint from being finalized.
 
-### What's Needed for 8.0+
+### Path to 8.5+
 
-To cross 8.0 overall, the project needs movement in the two stalled subcategories:
+To reach 8.5, the project needs to move the two stalled subcategories:
 
-1. **Test Coverage → 8/10:** Add completion flow test (timer runs to 0, form appears). Add keyboard shortcut test (Space starts/pauses, Escape resets). These two tests would cover the most critical untested paths. Estimated effort: ~30 minutes of agent time.
+1. **Test Coverage → 8/10:** Add two tests:
+   - Completion flow: Create a 1-second custom timer, let it reach 0, verify modal appears, interact with notes/tags, submit. (~15 lines of test code)
+   - Keyboard shortcuts: Space starts the timer, Space again pauses, Escape resets. (~10 lines)
+   These two tests would cover the two most critical untested paths and demonstrate that the test suite grows with features.
 
-2. **Skill Integration → 8/10:** Add a `sessions:listUsers` Convex query that returns distinct userIds with their session counts. Update the pomodoro-check skill to call this query first, then use the returned userId. This makes the skill work in both dev and prod. Estimated effort: ~20 minutes.
+2. **Sprint Autonomy → 9/10:** Three changes:
+   - Fix `s.md` sprint counter to #6 (30 seconds)
+   - Commit the Sprint #6 changes (1 minute)
+   - Add an explicit "Update s.md counter" step to the sprint skill's close-out sequence, or automate it with a post-commit hook
 
-3. **Fix s.md sprint counter** — trivial but blocks Sprint Autonomy from reaching 9. An agent that cannot determine the current sprint number will create duplicate branches.
+3. **Skill Integration → 9/10:** Add a `sessions:listUsers` query returning distinct userIds with session counts. Update the skill to handle multi-user scenarios gracefully. Add cold-start fallback instructions.
 
-4. **Commit `public/sw.js`** — the service worker is a feature, not a build artifact. It should be tracked in git.
-
-These four items would bring the score to approximately 8.4/10.
+Items 1 and 2 alone would bring the score to approximately 8.4. All three would reach 8.6.
 
 ## Recommendations (Priority Order)
 
-1. Commit `public/sw.js` and update `s.md` sprint counter — two minutes, unblocks further sprints
-2. Add timer completion E2E test — covers the most important untested path
-3. Add keyboard shortcut E2E test — covers the second most important untested path
-4. Add `sessions:listUsers` query and update pomodoro-check skill for prod
-5. Add service worker offline test — validates the Sprint #5 feature actually works under E2E
-6. Consider adding `"dev:full": "npx concurrently 'npm run dev' 'npx convex dev'"` to package.json
-7. Add ESLint config — prevent style drift across future sprints
+1. **Commit Sprint #6 changes and update `s.md`** — zero-effort, unblocks the sprint PR
+2. **Add completion flow E2E test** — highest-value untested path, covers the Sprint #5 modal
+3. **Add keyboard shortcut E2E test** — second highest-value, trivial to implement
+4. **Add `sessions:listUsers` query** — future-proofs the skill for multi-user and provides richer agent context
+5. **Self-host fonts** — eliminates Google Fonts external dependency, improves offline story
+6. **Add ESLint** — prevent style drift as sprint count increases
+7. **Automate `s.md` counter update in sprint skill** — stop the four-sprint pattern of stale counters

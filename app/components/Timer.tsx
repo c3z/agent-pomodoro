@@ -28,9 +28,20 @@ const MODE_COLORS: Record<TimerMode, string> = {
   longBreak: "text-blue-400",
 };
 
+let audioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!audioCtx || audioCtx.state === "closed") {
+    audioCtx = new AudioContext();
+  }
+  return audioCtx;
+}
+
 function playCompletionSound() {
   try {
-    const ctx = new AudioContext();
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") ctx.resume();
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -41,7 +52,8 @@ function playCompletionSound() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.8);
-    // Second tone
+    osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.connect(gain2);
@@ -53,6 +65,7 @@ function playCompletionSound() {
     gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.0);
     osc2.start(ctx.currentTime + 0.15);
     osc2.stop(ctx.currentTime + 1.0);
+    osc2.onended = () => { osc2.disconnect(); gain2.disconnect(); };
   } catch {}
 }
 

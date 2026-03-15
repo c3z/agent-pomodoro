@@ -1,170 +1,153 @@
-# Performance Review — Agent Pomodoro (Sprint #5)
+# Performance Review — Agent Pomodoro (Sprint #6)
 
 **Reviewer:** Performance
 **Date:** 2026-03-15
-**Previous scores:** Sprint #1: 5.4, Sprint #2: 6.6, Sprint #3: 7.2, Sprint #4: not scored
-**Files reviewed:** `app/components/Timer.tsx`, `app/routes/timer.tsx`, `app/root.tsx`, `vite.config.ts`, `package.json`, `public/sw.js`, `public/manifest.json`, `app/components/Providers.tsx`, `app/routes/home.tsx`
+**Previous scores:** Sprint #1: 5.4, Sprint #2: 6.6, Sprint #3: 7.2, Sprint #4: not scored, Sprint #5: 7.2
+**Files reviewed:** `app/components/Timer.tsx`, `app/routes/timer.tsx`, `app/root.tsx`, `vite.config.ts`, `package.json`, `public/sw.js`, `app/components/Providers.tsx`, `app/routes/home.tsx`, `app/routes/layout.tsx`, `app/components/Stats.tsx`, `app/components/SessionList.tsx`, `app/app.css`, `convex/sessions.ts`
 
 ---
 
-## Sprint 5 Changes Evaluated
+## Sprint 6 Changes Evaluated
 
-1. **Service worker added** (`public/sw.js`) — network-first for navigation requests, cache-first for hashed `/assets/` paths. Pre-caches `/`, `/timer`, `/history` on install. Cleans old caches on activate. Skips Convex and cross-origin requests.
-2. **SW registration in `root.tsx`** — registered via `useEffect` in the `App` component, with `.catch(() => {})` error swallow.
-3. **Notes/tags completion modal in Timer** — new state variables (`showCompletion`, `completionNotes`, `completionTags`), modal UI with textarea + tag toggle buttons, `handleCompletionSubmit` / `handleCompletionSkip` handlers.
-4. **Convex prod deployment fixed** (infrastructure, no perf impact on client code).
+1. **AudioContext leak FIXED** — Module-level singleton `audioCtx` (line 31), created once via `getAudioContext()`, reused across all completions. Oscillators and gain nodes are disconnected on `onended` callback (lines 55, 68). No more leaked AudioContexts after repeated session completions.
+
+2. **Font preload added for JetBrains Mono** — `root.tsx` line 21-25: `<link rel="preload" as="style">` for the JetBrains Mono CSS descriptor. This triggers early fetch of the font CSS, allowing the browser to discover the actual font files sooner.
+
+3. **Inter narrowed from variable to 400;600;700** — `root.tsx` line 28: `Inter:wght@400;600;700` instead of full variable range. Reduces the font file payload by loading only three static weight slices instead of the entire variable font axis.
+
+4. **Completion handler duplication already resolved in Sprint #5** — `advanceAfterCompletion` (line 194) is the single shared function for both `handleCompletionSubmit` and `handleCompletionSkip`. P2-PERF-16 was fixed before this review cycle.
 
 ---
 
 ## Scores
 
-| # | Subcategory | Score | Prev (S3) | Delta | Notes |
+| # | Subcategory | Score | Prev (S5) | Delta | Notes |
 |---|-------------|-------|-----------|-------|-------|
-| 1 | Timer Accuracy | 8/10 | 8 | 0 | No regression. Wall-clock anchor unchanged. |
-| 2 | Initial Load | 7/10 | 7 | 0 | SW pre-cache helps repeat visits. Font strategy unchanged. |
-| 3 | Bundle Size | 8/10 | 8 | 0 | Zero new dependencies. Completion modal is pure React — negligible. |
-| 4 | State Management | 6/10 | 7 | -1 | Three new state vars + modal logic added coupling. Batching concern in completion handlers. |
-| 5 | Offline Capability | 7/10 | 5 | +2 | Service worker is the single biggest perf improvement since Sprint 1. |
+| 1 | Timer Accuracy | 8/10 | 8 | 0 | No regression. Wall-clock anchor unchanged and correct. |
+| 2 | Initial Load | 8/10 | 7 | +1 | Font preload + weight narrowing measurably reduces FOIT. |
+| 3 | Bundle Size | 8/10 | 8 | 0 | No new deps. Font narrowing helps network payload, not JS bundle. |
+| 4 | State Management | 7/10 | 6 | +1 | Handler dedup fixed. AudioContext leak fixed. setState nesting resolved. |
+| 5 | Offline Capability | 7/10 | 7 | 0 | SW unchanged. Mutation retry queue still absent. |
 
-**Overall: 7.2 / 10** (prev 7.2, delta +0.0)
+**Overall: 7.6 / 10** (prev 7.2, delta +0.4)
 
-The zero net delta is deceptive — offline jumped +2 but state management regressed -1. Sprint 5 traded complexity for capability. The right trade, but the state debt needs paying.
+Sprint #6 is a pure cleanup sprint that paid down two categories of debt: state management (handler dedup, AudioContext singleton) and initial load (font strategy). No new features, no new complexity. This is the first sprint since Sprint #2 where the overall score improved without introducing a new regression elsewhere.
 
 ---
 
-## 1. Timer Accuracy — 8/10
+## 1. Timer Accuracy — 8/10 (unchanged)
 
-No changes to the core tick mechanism in Sprint 5. The wall-clock anchor pattern remains:
+The core tick mechanism is untouched. The wall-clock anchor pattern continues to work correctly:
+
 - `endTimeRef.current = Date.now() + secondsLeft * 1000` set on start/resume
 - 250ms `setInterval` reads `Date.now()` each tick, computes remaining via `Math.ceil((endTime - now) / 1000)`
 - `visibilitychange` handler recalculates on tab refocus
 
-This approach is immune to `setInterval` drift, background tab throttling, and sleep/wake cycles. Accuracy is bounded by `Date.now()` precision (~1ms), which is more than sufficient for a 1-second display resolution.
-
-**Remaining concern (unchanged):**
-- P3-PERF-14: 250ms tick = 4 `setSecondsLeft` calls/sec. Since display shows whole seconds, a 1-second interval with the same wall-clock correction would produce identical visual output with 75% fewer state updates. Not impactful in practice — React batches these efficiently and the component tree is shallow.
-
----
-
-## 2. Initial Load — 7/10
-
-The service worker improves *repeat* visit load times significantly — cache-first for `/assets/*` means hashed JS/CSS bundles are served from the SW cache without hitting the network. First visit is unchanged since the SW only activates after initial load.
-
-**Positive:** Pre-caching of `/`, `/timer`, `/history` on install means the app shell is available from cache immediately after first visit. Navigation between routes is instant from cache.
+No drift, no background tab issues, no sleep/wake issues. The timer is correct.
 
 **Remaining concerns (unchanged):**
 
-### P3-PERF-03: External Google Fonts (unchanged)
-Two Google Fonts loaded via `<link rel="stylesheet">` in `root.tsx` lines 14-27. These are render-blocking external requests. The fonts themselves (`Inter`, `JetBrains Mono`) are served from `fonts.gstatic.com` with long cache headers, but the CSS descriptor file from `fonts.googleapis.com` is fetched fresh. On slow networks, this adds 100-500ms of FOIT/FOUT.
-
-The service worker does NOT cache these because they're cross-origin (`url.origin !== self.location.origin` check on line 29 of `sw.js`). This is correct behavior for the current SW implementation but means fonts remain a network dependency even when the rest of the app is cached.
-
-### P3-PERF-04: Clerk eager-loading (unchanged)
-`@clerk/clerk-react` (~80kB gzipped) is loaded eagerly via `Providers.tsx`. Could be dynamically imported for unauthenticated first paint.
+### P3-PERF-14: 250ms tick interval (unchanged, OPEN)
+4 state updates per second where 1 would suffice for a whole-second display. Not perceptible given React 19 batching and the shallow component tree, but it's wasted work. Changing to 1000ms with the same wall-clock correction would produce identical visual output.
 
 ---
 
-## 3. Bundle Size — 8/10
+## 2. Initial Load — 8/10 (improved from 7)
 
-Zero new `dependencies` or `devDependencies` added in Sprint 5. `package.json` is identical to Sprint 3.
+Two targeted fixes address the font loading concern raised in every prior review.
 
-The completion modal (notes textarea + tag buttons) is pure JSX with no external libraries — no rich text editor, no tag input library, no form library. The `QUICK_TAGS` array is a static constant. The modal adds maybe 2kB unminified to `Timer.tsx`, which compresses to effectively nothing.
+### P3-PERF-03: Font loading — PARTIALLY RESOLVED
 
-Production dependency profile unchanged:
+**What improved:**
+
+1. **JetBrains Mono preload** (`root.tsx` line 21-25): The `<link rel="preload" as="style">` hint tells the browser to begin fetching the Google Fonts CSS descriptor immediately during HTML parsing, before the render tree is constructed. Previously, the browser only discovered this resource when it encountered the `<link rel="stylesheet">` further down — by which time it had already blocked on the first stylesheet. The preload allows the two font CSS fetches to overlap.
+
+2. **Inter weight narrowing** (`root.tsx` line 28): `Inter:wght@400;600;700` instead of the full variable range. Google Fonts serves optimized static font files for discrete weight requests. Three static weights (~45kB total) vs. the full variable font (~95kB). The app only uses these three weights (400 for body, 600 for sublabels, 700 for headings), so the variable font was pure waste.
+
+**What remains:**
+
+The fonts are still loaded from `fonts.googleapis.com` / `fonts.gstatic.com` — external, cross-origin, not cached by the service worker. On a cold visit with a slow network, fonts remain a blocking dependency that the SW cannot mitigate. Self-hosting the font files under `/assets/fonts/` would bring them under SW cache control and eliminate the external dependency entirely.
+
+Downgrading from P3 to **P3-PERF-03** (kept, reduced severity). The preload and weight narrowing cut the practical impact roughly in half. The remaining gap — self-hosting — is a nice-to-have, not a pain point.
+
+### P3-PERF-20 (NEW): JetBrains Mono preload uses `as="style"` but no `onload` swap
+
+The preload link (line 21-25) uses `rel="preload" as="style"` but is immediately followed by a regular `rel="stylesheet"` for the same URL (lines 30-32). This means the preload is redundant — the browser will fetch the resource as a stylesheet anyway. The preload only helps if the stylesheet link comes significantly later in the document, or if the preload uses an `onload` handler to apply the stylesheet asynchronously.
+
+In the current structure where both links are in the same `<head>`, the preload adds a minor benefit: it elevates the fetch priority from "low" (stylesheet discovered later) to "high" (preload discovered immediately). But the benefit is marginal since both links are in the same `links()` array and render sequentially.
+
+Severity: P3 — cosmetic, ~20-50ms improvement at best. Not worth fixing unless self-hosting is pursued, at which point the preload becomes unnecessary.
+
+---
+
+## 3. Bundle Size — 8/10 (unchanged)
+
+Zero new dependencies in Sprint #6. `package.json` unchanged from Sprint #5.
+
+Production dependency profile:
 - `react` + `react-dom`: ~45kB gz
 - `@clerk/*`: ~80kB gz
 - `convex`: ~35kB gz
 - `react-router`: ~25kB gz
-- App code: ~6kB total (marginal increase from modal)
-- **Total estimated: ~191kB gzipped**
+- App code: ~6kB total
+- **Total estimated: ~191kB gzipped** (unchanged)
 
-The `sw.js` file itself is ~60 lines, served as a static file — no bundling overhead.
+The font weight narrowing reduces *network transfer* (not JS bundle) by ~50kB on first load. This is captured under Initial Load, not Bundle Size, since fonts are CSS/binary resources, not JavaScript.
 
-**No new issues.**
+**Remaining concerns (unchanged):**
 
----
-
-## 4. State Management — 6/10 (regression from 7)
-
-Sprint 5 adds three new `useState` hooks to `Timer`:
-- `showCompletion` (boolean)
-- `completionNotes` (string)
-- `completionTags` (string[])
-
-These are only relevant when the timer completes, but they exist in the component throughout its entire lifecycle. More critically, the completion handlers introduce patterns that are suboptimal.
-
-### P2-PERF-15 (NEW): setState inside setState updater
-
-`handleCompletionSubmit` and `handleCompletionSkip` (lines 181-219) both call `setMode()` and `setSecondsLeft()` inside the `setCompletedPomodoros()` updater function:
-
-```tsx
-setCompletedPomodoros((prev) => {
-  const newCount = prev + 1;
-  const nextMode = newCount % DEFAULT_CONFIG.longBreakInterval === 0
-    ? "longBreak" : "break";
-  setMode(nextMode);          // setState inside setState updater
-  setSecondsLeft(DEFAULT_CONFIG[nextMode] * 60);  // another one
-  return newCount;
-});
-```
-
-Calling `setMode` and `setSecondsLeft` inside a `setCompletedPomodoros` updater is an anti-pattern. React 19 batches all state updates within event handlers, so there is no practical benefit to nesting them. The nesting makes it harder to reason about render order and could produce unexpected behavior if React changes its batching semantics in future versions.
-
-The correct approach: compute `newCount` from `completedPomodoros + 1`, then call all three `setState` calls at the top level of the handler.
-
-### P2-PERF-16 (NEW): Duplicated completion handler logic
-
-`handleCompletionSubmit` and `handleCompletionSkip` are nearly identical — same `setShowCompletion(false)`, `setCompletionNotes("")`, `setCompletionTags([])`, and the exact same `setCompletedPomodoros` updater. The only difference is whether `notes` and `tags` are passed to `onCompleteRef.current`. This is 40 lines of duplicated logic (lines 181-219) that should be a single function with an optional parameter.
-
-### P3-PERF-17 (NEW): Completion modal re-renders during typing
-
-When the user types notes in the completion textarea, `setCompletionNotes(e.target.value)` triggers a re-render of the entire `Timer` component on every keystroke. This re-renders the SVG progress ring, the pomodoro counter dots, and all buttons — even though the timer is stopped and none of that UI is changing.
-
-In practice this is not perceptible (the component tree is small), but it would be cleaner to extract the completion modal into its own component to isolate the typing re-renders.
-
-### Existing state issues (unchanged)
-
-- P3-PERF-12: AudioContext leak — new context per completion, never closed
-- P3-PERF-13: SVG transition-all overlap with 250ms ticks
+### P3-PERF-04: Clerk could be lazy-loaded (unchanged, OPEN)
+`@clerk/clerk-react` (~80kB gz) is imported eagerly in `Providers.tsx`. A `React.lazy()` wrapper with a fallback would defer this until the auth gate is actually needed. For the timer page — the primary use case — this would cut initial JS by ~40%.
 
 ---
 
-## 5. Offline Capability — 7/10 (major improvement from 5)
+## 4. State Management — 7/10 (improved from 6)
 
-This is the headline improvement of Sprint 5. The service worker directly addresses P2-PERF-08, which was the top priority recommendation from Sprint 3.
+Sprint #6 resolved two of the three state management issues raised in Sprint #5.
 
-### What's implemented well
+### P2-PERF-15: setState inside setState updater — RESOLVED
 
-**Install phase** (lines 4-9): Pre-caches three navigation routes (`/`, `/timer`, `/history`). Uses `skipWaiting()` for immediate activation — correct for an app with a single active client.
+The `advanceAfterCompletion` function (line 194-208) now computes `newCount` from `completedPomodoros + 1` directly, then calls `setCompletedPomodoros(newCount)`, `setMode(nextMode)`, and `setSecondsLeft()` as top-level sequential setState calls. No nested updaters.
 
-**Activate phase** (lines 11-22): Deletes old caches by filtering on `CACHE_NAME !== key`. Uses `clients.claim()` to take control of existing tabs without requiring a reload.
+### P2-PERF-16: Duplicated completion handler logic — RESOLVED
 
-**Fetch strategy** (lines 24-58):
-- Cross-origin and non-GET requests are correctly skipped
-- Convex WebSocket/API calls are correctly excluded
-- Navigation requests: network-first with cache fallback. On failure, falls back to cached response or root (`/`) as ultimate fallback. This is the correct strategy for an SPA — ensures users get fresh content when online, cached content when offline.
-- Hashed assets (`/assets/*`): cache-first. Correct — these are content-hashed by Vite and immutable.
+`handleCompletionSubmit` and `handleCompletionSkip` now both delegate to `advanceAfterCompletion()`. Submit passes notes/tags, skip passes nothing. Single source of truth for the transition logic.
 
-**Timer works offline:** The timer is entirely client-side after initial load. Once the SW caches the app shell, navigating to `/timer` and running a full 25-minute pomodoro works without any network access. This is the core use case and it works.
+### P3-PERF-12: AudioContext leak — RESOLVED
 
-### P2-PERF-18 (NEW): Pre-cached routes may return HTML, not app shell
+Module-level singleton `audioCtx` (line 31) created via `getAudioContext()`. Checks for `closed` state before reuse. Both oscillators disconnect themselves and their gain nodes via `onended` callbacks (lines 55, 68). No more context accumulation after repeated completions. The context is never explicitly closed, which is acceptable — it will be garbage collected when the page unloads, and a single `AudioContext` per page is within browser resource limits.
 
-`STATIC_ASSETS` on line 2 lists `/`, `/timer`, `/history`. During the `install` event, `cache.addAll()` fetches these URLs and caches the server-rendered HTML responses. However, React Router 7 SSR means these cached responses contain the full HTML document with inline data. If the Convex/Clerk data changes between install and offline use, the cached HTML will show stale data until React hydrates and the client takes over.
+### Remaining concerns
 
-This is acceptable for the timer page (which has no server data in the initial render) but could show stale stats on the dashboard. Low severity since hydration corrects it within seconds when online, and offline users expect some staleness.
+#### P3-PERF-13: SVG progress ring transition overlap (unchanged, OPEN)
+The progress ring circle has `transition-all duration-300` (line 381) which animates `strokeDashoffset` changes. With ticks every 250ms, a new transition starts before the previous 300ms one completes. The visual effect is smooth enough — CSS transitions handle this gracefully by interpolating from the current animated value — but `transition-[stroke-dashoffset]` would be more precise than `transition-all`, avoiding unnecessary property checks.
 
-### P2-PERF-11 (unchanged): No mutation retry queue
+#### P3-PERF-17: Completion modal re-renders entire Timer (unchanged, OPEN)
+Typing in the notes textarea still triggers full Timer re-renders. The component tree is shallow enough that this is not perceptible. Extracting the modal to a child component would be cleaner but is not a priority.
 
-Failed Convex mutations (start/complete/interrupt) in `timer.tsx` are caught and logged with `console.warn` but never retried. A session started online that completes while offline will have its `complete` mutation silently dropped. The pomodoro time is lost.
+---
 
-This is the most impactful remaining offline gap. The timer *runs* offline perfectly, but the *data* doesn't survive connectivity drops. A simple pattern would fix this:
-1. On mutation failure, save to `localStorage` with a queue key
-2. On `navigator.onLine` event or next successful mutation, replay the queue
+## 5. Offline Capability — 7/10 (unchanged)
+
+No changes to the service worker or offline behavior in Sprint #6.
+
+### P2-PERF-11: No mutation retry queue (unchanged, OPEN)
+
+This remains the single most impactful open issue. The timer runs perfectly offline. The data does not survive connectivity drops. A session started online that completes while offline will have its `complete` mutation silently dropped via the `console.warn` catch block in `timer.tsx` lines 33-42.
+
+The fix pattern remains the same:
+1. On mutation failure, serialize `{ action, args, timestamp }` to `localStorage`
+2. On `navigator.onLine` event, replay the queue
 3. Convex mutations are idempotent by session ID, so replays are safe
+4. Estimated effort: 40-60 lines, no new dependencies
 
-### P3-PERF-19 (NEW): SW registration error silently swallowed
+### P2-PERF-18: Pre-cached SSR routes serve stale inline data (unchanged, OPEN)
 
-`root.tsx` line 56: `navigator.serviceWorker.register("/sw.js").catch(() => {})`. If registration fails (e.g., invalid SW syntax, HTTPS issue), there is no feedback. A `console.warn` in the catch would help debugging without affecting users.
+`cache.addAll(["/", "/timer", "/history"])` caches full SSR HTML at install time. Stale data in cached HTML until React hydrates. Acceptable for timer page (no server data), cosmetic for dashboard. Low practical severity.
+
+### P3-PERF-19: SW registration error silently swallowed (unchanged, OPEN)
+
+`root.tsx` line 61: `.catch(() => {})`. A `console.warn` would help debugging. No user impact.
 
 ---
 
@@ -178,63 +161,64 @@ This is the most impactful remaining offline gap. The timer *runs* offline perfe
 | P2-PERF-05 | ~~P2~~ | ~~Unstable callback refs~~ | **RESOLVED** Sprint 2 |
 | P2-PERF-06 | ~~P2~~ | ~~handleComplete in useEffect deps~~ | **RESOLVED** Sprint 2 |
 | P2-PERF-10 | ~~P2~~ | ~~Completion detection fragile (dual effects)~~ | **RESOLVED** Sprint 3 |
-| P2-PERF-08 | ~~P2~~ | ~~No service worker — app cannot load offline~~ | **RESOLVED** Sprint 5 |
+| P2-PERF-08 | ~~P2~~ | ~~No service worker~~ | **RESOLVED** Sprint 5 |
+| P2-PERF-15 | ~~P2~~ | ~~setState inside setState updater~~ | **RESOLVED** Sprint 6 |
+| P2-PERF-16 | ~~P2~~ | ~~Duplicated completion handler logic~~ | **RESOLVED** Sprint 5/6 |
+| P3-PERF-12 | ~~P3~~ | ~~AudioContext leak~~ | **RESOLVED** Sprint 6 |
 | P2-PERF-11 | P2 | No retry queue for failed mutations | OPEN |
-| P2-PERF-15 | P2 | setState inside setState updater (completion handlers) | NEW |
-| P2-PERF-16 | P2 | Duplicated completion handler logic | NEW |
-| P2-PERF-18 | P2 | Pre-cached SSR routes may serve stale inline data | NEW |
-| P3-PERF-12 | P3 | AudioContext leak — new context per completion, never closed | OPEN |
-| P3-PERF-13 | P3 | SVG progress ring: overlapping CSS transitions | OPEN |
-| P3-PERF-14 | P3 | 250ms tick interval — 4x more renders than needed | OPEN |
-| P3-PERF-03 | P3 | Font loading strategy — external Google Fonts, no preload | OPEN |
+| P2-PERF-18 | P2 | Pre-cached SSR routes may serve stale inline data | OPEN |
+| P3-PERF-03 | P3 | Font loading — external, not SW-cached (severity reduced) | OPEN |
 | P3-PERF-04 | P3 | Clerk could be lazy-loaded (~80kB savings) | OPEN |
-| P3-PERF-17 | P3 | Completion modal re-renders entire Timer on keystroke | NEW |
-| P3-PERF-19 | P3 | SW registration error silently swallowed | NEW |
+| P3-PERF-13 | P3 | SVG progress ring: transition-all overlap | OPEN |
+| P3-PERF-14 | P3 | 250ms tick interval — 4x more renders than needed | OPEN |
+| P3-PERF-17 | P3 | Completion modal re-renders entire Timer on keystroke | OPEN |
+| P3-PERF-19 | P3 | SW registration error silently swallowed | OPEN |
+| P3-PERF-20 | P3 | JetBrains Mono preload redundant with immediate stylesheet | NEW |
 
-**P1 count: 0** | P2 count: 4 | P3 count: 7
+**P1 count: 0** | P2 count: 2 | P3 count: 7
 
 ---
 
 ## What Moved the Needle
 
-The service worker is the single most impactful Sprint 5 change from a performance perspective. It resolves the longest-standing P2 issue (PERF-08, open since Sprint 1) and fundamentally changes what the app can do:
+Sprint #6 is a debt-paydown sprint, and debt-paydown sprints are the ones that actually improve quality. Three specific fixes drove the +0.4 gain:
 
-- **Repeat visit TTI drops to near-zero** for cached assets. Hashed JS/CSS bundles served from SW cache bypass the network entirely.
-- **True offline timer operation.** The core use case — start a pomodoro and focus for 25 minutes — now works without network after first visit.
-- **PWA installability + offline = real app feel.** The manifest (Sprint 3) plus the SW (Sprint 5) together make this a fully installable, offline-capable PWA.
+1. **AudioContext singleton** (PERF-12 resolved): The old code created a new `AudioContext` on every completion sound. Browsers limit contexts to ~6 before silently failing. After the 6th pomodoro completion, the sound would stop working with no error feedback. The module-level singleton with `onended` cleanup eliminates this failure mode entirely. This is the kind of bug that only surfaces in real usage after several hours — exactly the usage pattern a pomodoro app exists for.
 
-The implementation is clean and conservative: no heavy dependencies (no Workbox, no vite-plugin-pwa), just 60 lines of hand-written SW with correct strategies for each request type. The code is readable and does exactly what it should.
+2. **Completion handler deduplication** (PERF-15, PERF-16 resolved): `advanceAfterCompletion()` is a clean shared function. No more setState inside setState updaters, no more duplicated transition logic. The Timer component is ~15 lines shorter and the completion flow has a single code path to reason about.
+
+3. **Font weight narrowing** (PERF-03 partially resolved): Inter `400;600;700` instead of the full variable range saves ~50kB on first load. JetBrains Mono preload shaves ~50-100ms off font discovery. Together, they noticeably reduce the flash of unstyled/invisible text on first visit. The fonts are still external, but the penalty is halved.
+
+None of these are individually dramatic. Together, they represent the difference between "technically works" and "works correctly under sustained use." Sprint #6 tightened bolts.
 
 ---
 
 ## What's Missing for 8.0+
 
-To break past 7.2, the following would need to happen:
+The path from 7.6 to 8.0 is narrow and clear. Two items would close the gap:
 
 ### Must-do (to reach 8.0)
 
-1. **Fix mutation retry queue (P2-PERF-11).** The timer works offline but data is lost. This is the gap between "offline-capable" and "offline-reliable." A localStorage queue with online/offline event listeners would close it. Estimated effort: 30-50 lines.
+1. **Mutation retry queue (P2-PERF-11).** This is the only remaining P2 that blocks real user value. The timer works offline. The data does not. A `localStorage`-backed queue with `navigator.onLine` replay would close the gap between "offline-capable UI" and "offline-reliable app." Effort: 40-60 lines, zero dependencies. This alone would push Offline Capability from 7 to 8, and the overall score to ~7.8.
 
-2. **Clean up completion handler state (P2-PERF-15, P2-PERF-16).** Extract completion modal to its own component. Deduplicate submit/skip logic. Move setState calls out of updater functions. This reduces Timer.tsx complexity and isolates re-renders. Estimated effort: 30 minutes.
-
-3. **Self-host fonts or add font-display/preload (P3-PERF-03).** Either bundle Inter and JetBrains Mono as local assets (the SW would then cache them), or add `<link rel="preload">` hints for the Google Fonts CSS. The current setup means fonts are the one remaining network dependency that the SW cannot help with.
+2. **Self-host fonts (P3-PERF-03).** Move Inter and JetBrains Mono to `/assets/fonts/`, reference them via `@font-face` in `app.css`. The SW already caches everything under `/assets/` with a cache-first strategy. This would make fonts available offline and eliminate the last external network dependency. Removes the Google Fonts preconnect, preload, and stylesheet links from `root.tsx` entirely. Effort: 20 minutes. Pushes Initial Load from 8 toward 9.
 
 ### Nice-to-have (to reach 8.5+)
 
-4. **Lazy-load Clerk (P3-PERF-04).** Dynamic `import()` for `@clerk/clerk-react` would drop initial JS by ~80kB for the unauthenticated shell.
+3. **Lazy-load Clerk (P3-PERF-04).** `React.lazy(() => import("@clerk/clerk-react"))` with a loading fallback in `Providers.tsx`. Saves ~80kB gzipped on initial load for the timer page. The timer is the primary entry point and does not need auth until mutation time. Effort: 30 minutes, moderate testing needed.
 
-5. **Reduce tick interval to 1s (P3-PERF-14).** Halves render count during active timer. Pure cleanup.
+4. **Reduce tick to 1s (P3-PERF-14).** Swap `setInterval(tick, 250)` to `setInterval(tick, 1000)`. The wall-clock correction means accuracy is unchanged. Display updates whole seconds only. Halves render count during active timer. Effort: 1 line change.
 
-6. **Reuse AudioContext (P3-PERF-12).** Module-level singleton, `close()` on page unload. Prevents silent failure after 6+ completions.
+5. **Extract completion modal (P3-PERF-17).** Move the completion form into `<CompletionModal>` child component. Isolates typing re-renders from the timer UI. Minor improvement, mainly code hygiene.
 
 ---
 
 ## Verdict
 
-Sprint 5 delivered the right thing: the service worker was the #1 recommendation from Sprint 3 and it's implemented correctly. The offline capability score jumped from 5 to 7, which is the biggest single-subcategory improvement in the project's history.
+Sprint #6 did the right thing at the right time. After Sprint #5 added capability (service worker, completion modal) at the cost of complexity, Sprint #6 paid down that complexity debt without adding new features. The result: +0.4 overall, P2 count dropped from 4 to 2, and no new regressions.
 
-The completion modal introduction is fine functionally but introduced minor state management debt — nested setState, duplicated handlers, and whole-component re-renders during typing. None of these are P1 or user-facing, but they pulled the state management score down by one point, exactly offsetting the offline gains in the overall average.
+The AudioContext fix is the standout — it addressed a real failure mode that would have hit users after sustained usage. The font optimization is solid craft. The handler deduplication is good hygiene.
 
-The overall 7.2 holds steady. This is not a plateau — it reflects a real capability gain (offline) balanced against real complexity growth (modal state). The path to 8.0 is clear: mutation retry queue + completion handler cleanup + font optimization. All three are low-effort, high-impact items that could be done in a single sprint.
+At 7.6, the app is in a healthy state. Zero P1 issues for the fourth consecutive sprint. The timer is accurate, the offline story is functional (if not yet reliable for data), and the resource management is clean. The path to 8.0 requires exactly one meaningful piece of work: the mutation retry queue. Everything else is polish.
 
-Zero P1 issues for the third consecutive sprint. The timer is production-grade.
+P2 count: 2. Both are offline-related. When those are resolved, this app has no significant performance concerns remaining.

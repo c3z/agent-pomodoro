@@ -244,3 +244,14 @@ export const agentSummary = query({
     return lines.join("\n");
   },
 });
+
+export const activeUserId = query({
+  args: {},
+  handler: async (ctx) => {
+    const latest = await ctx.db
+      .query("pomodoroSessions")
+      .order("desc")
+      .first();
+    return latest?.userId ?? null;
+  },
+});
