@@ -40,16 +40,27 @@ function sendNotification(mode: TimerMode) {
   new Notification(title, { body, icon: "/favicon.ico" });
 }
 
+interface RemoteSession {
+  _id: string;
+  type: TimerMode;
+  durationMinutes: number;
+  startedAt: number;
+}
+
 interface TimerProps {
   onSessionStart?: (type: TimerMode, durationMinutes: number) => void;
   onSessionComplete?: (type: TimerMode, notes?: string, tags?: string[]) => void;
   onSessionInterrupt?: () => void;
+  remoteSession?: RemoteSession | null;
+  onRemoteSessionSync?: (sessionId: string) => void;
 }
 
 export function Timer({
   onSessionStart,
   onSessionComplete,
   onSessionInterrupt,
+  remoteSession,
+  onRemoteSessionSync,
 }: TimerProps) {
   const [mode, setMode] = useState<TimerMode>("work");
   const [secondsLeft, setSecondsLeft] = useState(DEFAULT_CONFIG.work * 60);
@@ -82,6 +93,35 @@ export function Timer({
 
   // Release wake lock on unmount (e.g. navigating away from /timer)
   useEffect(() => () => releaseWakeLock(), []);
+
+  // Sync with remotely-started sessions (e.g. via CLI or API)
+  const syncedSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!remoteSession) {
+      syncedSessionRef.current = null;
+      return;
+    }
+    // Already synced to this session, or already running locally
+    if (syncedSessionRef.current === remoteSession._id) return;
+    if (startedRef.current) return;
+
+    const elapsed = (Date.now() - remoteSession.startedAt) / 1000;
+    const total = remoteSession.durationMinutes * 60;
+    const remaining = Math.max(0, Math.ceil(total - elapsed));
+
+    if (remaining <= 0) return; // Session already expired
+
+    syncedSessionRef.current = remoteSession._id;
+    setMode(remoteSession.type);
+    setSecondsLeft(remaining);
+    endTimeRef.current = Date.now() + remaining * 1000;
+    startedRef.current = true;
+    completedRef.current = true;
+    setIsRunning(true);
+    setIsPaused(false);
+    requestWakeLock();
+    onRemoteSessionSync?.(remoteSession._id);
+  }, [remoteSession]);
 
   // Stable refs for callbacks to avoid useEffect dependency issues
   const onCompleteRef = useRef(onSessionComplete);

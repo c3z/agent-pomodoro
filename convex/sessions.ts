@@ -265,6 +265,21 @@ export const agentSummary = query({
   },
 });
 
+export const activeSession = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const sessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .take(10);
+    return sessions.find((s) => !s.completed && !s.interrupted) ?? null;
+  },
+});
+
 export const activeUserId = internalQuery({
   args: {},
   handler: async (ctx) => {

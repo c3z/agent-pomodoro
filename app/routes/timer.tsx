@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Timer } from "~/components/Timer";
 import { useUserId } from "~/lib/useUserId";
@@ -11,6 +11,11 @@ export default function TimerPage() {
   const startSession = useMutation(api.sessions.start);
   const completeSession = useMutation(api.sessions.complete);
   const interruptSession = useMutation(api.sessions.interrupt);
+  const hasClerk = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const activeSession = useQuery(
+    api.sessions.activeSession,
+    hasClerk && userId ? { userId } : "skip"
+  );
   const sessionIdRef = useRef<Id<"pomodoroSessions"> | null>(null);
 
   // Flush retry queue when online
@@ -53,6 +58,10 @@ export default function TimerPage() {
   return (
     <div className="flex flex-col items-center pt-8">
       <Timer
+        remoteSession={activeSession ?? null}
+        onRemoteSessionSync={(sessionId) => {
+          sessionIdRef.current = sessionId as Id<"pomodoroSessions">;
+        }}
         onSessionStart={async (type, duration) => {
           if (!userId) return;
           const args = { userId, type, durationMinutes: duration };
