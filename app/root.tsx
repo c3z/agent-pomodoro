@@ -25,6 +25,9 @@ export const links: Route.LinksFunction = () => [
     rel: "stylesheet",
     href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap",
   },
+  { rel: "manifest", href: "/manifest.json" },
+  { rel: "icon", type: "image/svg+xml", href: "/icon.svg" },
+  { rel: "apple-touch-icon", href: "/icon-192.png" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -33,6 +36,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#0f172a" />
         <title>Agent Pomodoro</title>
         <Meta />
         <Links />

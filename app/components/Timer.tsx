@@ -152,24 +152,21 @@ export function Timer({
     };
   }, [isRunning]);
 
-  // Handle completion as a separate effect watching secondsLeft hitting 0 while running
-  const completedRef = useRef(false);
-  useEffect(() => {
-    if (secondsLeft === 0 && !completedRef.current && startedRef.current === false) {
-      // Timer just completed — this fires after the tick sets isRunning=false
-    }
-  }, [secondsLeft]);
-
   // Detect completion: secondsLeft hit 0 and timer stopped
+  const completedRef = useRef(false);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
   useEffect(() => {
     if (secondsLeft > 0 || isRunning) return;
     if (!completedRef.current) return;
     completedRef.current = false;
 
-    sendNotification(mode);
-    onCompleteRef.current?.(mode);
+    const currentMode = modeRef.current;
+    sendNotification(currentMode);
+    onCompleteRef.current?.(currentMode);
 
-    if (mode === "work") {
+    if (currentMode === "work") {
       setCompletedPomodoros((prev) => {
         const newCount = prev + 1;
         const nextMode =
@@ -184,7 +181,7 @@ export function Timer({
       setMode("work");
       setSecondsLeft(DEFAULT_CONFIG.work * 60);
     }
-  }, [secondsLeft, isRunning, mode]);
+  }, [secondsLeft, isRunning]);
 
   // Visibilitychange: recalculate when tab regains focus
   useEffect(() => {
@@ -202,7 +199,13 @@ export function Timer({
       document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — use refs to avoid re-registering on every render
+  const isRunningRef = useRef(isRunning);
+  isRunningRef.current = isRunning;
+  const startRef = useRef<() => void>();
+  const pauseRef = useRef<() => void>();
+  const stopRef = useRef<() => void>();
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (
@@ -212,19 +215,19 @@ export function Timer({
         return;
       if (e.code === "Space") {
         e.preventDefault();
-        if (isRunning) {
-          pause();
+        if (isRunningRef.current) {
+          pauseRef.current?.();
         } else {
-          start();
+          startRef.current?.();
         }
       } else if (e.code === "Escape") {
         e.preventDefault();
-        stop();
+        stopRef.current?.();
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  });
+  }, []);
 
   const start = () => {
     // Request notification permission on first start
@@ -268,6 +271,11 @@ export function Timer({
     }
     setSecondsLeft(DEFAULT_CONFIG[mode] * 60);
   };
+
+  // Keep keyboard refs current
+  startRef.current = start;
+  pauseRef.current = pause;
+  stopRef.current = stop;
 
   const switchMode = (newMode: TimerMode) => {
     if (isRunning) return;

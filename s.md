@@ -1,17 +1,17 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #2
-## Consolidated Score: 6.9/10
-## Stop Condition: End-user >= 7.0/10, P1 = 0
+## Current Sprint: #3
+## Consolidated Score: 7.3/10
+## Stop Condition: End-user >= 7.0/10, P1 = 0 — MET
 
 ## Scores
 
-| Reviewer | #1 | #2 | Delta |
-|----------|-----|-----|-------|
-| End-user (PRIMARY) | 5.6 | 6.6 | +1.0 |
-| Developer Experience | 6.4 | 7.4 | +1.0 |
-| Performance | 5.4 | 6.6 | +1.2 |
-| **Consolidated** | **5.8** | **6.9** | **+1.1** |
+| Reviewer | #1 | #2 | #3 | Delta |
+|----------|-----|-----|-----|-------|
+| End-user (PRIMARY) | 5.6 | 6.6 | **7.3** | +0.7 |
+| Developer Experience | 6.4 | 7.4 | 7.4 | — |
+| Performance | 5.4 | 6.6 | 7.2 | +0.6 |
+| **Consolidated** | **5.8** | **6.9** | **7.3** | **+0.4** |
 
 ## Backlog
 
@@ -67,3 +67,9 @@
 - **Scope:** Wall-clock timer, audio/browser notifications, keyboard shortcuts, CI
 - **Result:** 6.9/10 consolidated (+1.1), 3 P1s remaining
 - **Fixed:** Timer drift, background tabs, audio, browser notifications, tab title, keyboard shortcuts, userId mismatch, CI pipeline, duplicate Convex client
+
+### Sprint #3 — PWA + History + P1 Cleanup
+- **Branch:** sprint/1 (continued)
+- **Scope:** PWA manifest, history date grouping, keyboard/completion P1 fixes
+- **Result:** 7.3/10 consolidated (+0.4), **P1 = 0, STOP CONDITION MET**
+- **Fixed:** PWA manifest+icons, history date groups, keyboard ref pattern, completion logic, CLAUDE.md stale refs

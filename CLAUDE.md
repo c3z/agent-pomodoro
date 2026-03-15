@@ -54,7 +54,7 @@ app/
 │   ├── SessionList.tsx  # Session list
 │   └── Providers.tsx    # Clerk + Convex providers
 └── lib/
-    └── convex.ts    # Convex client
+    └── useUserId.ts # User ID hook (Clerk/dev)
 
 convex/
 ├── schema.ts        # pomodoroSessions table
