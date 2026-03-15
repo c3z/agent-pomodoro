@@ -50,6 +50,7 @@ app/
 │   ├── home.tsx     # Dashboard (stats + period selector + today's sessions)
 │   ├── timer.tsx    # Pomodoro timer + retry queue integration
 │   ├── history.tsx  # Session history with pagination
+│   ├── settings.tsx # API key management for agent access
 │   └── sign-in.tsx  # Clerk sign-in
 ├── components/      # React components
 │   ├── Timer.tsx    # Core timer logic + UI + completion modal
@@ -62,10 +63,16 @@ app/
     └── retryQueue.ts    # localStorage-based offline mutation retry
 
 convex/
-├── schema.ts        # pomodoroSessions table
+├── schema.ts        # pomodoroSessions + apiKeys tables
 ├── sessions.ts      # CRUD mutations + queries + stats + agentSummary + activeUserId
+├── apiKeys.ts       # API key CRUD + hash validation
+├── http.ts          # REST API endpoints (status, stats, sessions)
 ├── auth.config.ts   # Clerk JWT config
 └── tsconfig.json    # Convex-specific TS config
+
+packages/apom/       # CLI tool (npm install -g apom)
+├── bin/apom.mjs     # Zero-dependency CLI (Node 18+)
+└── package.json     # npm package config
 
 public/
 ├── sw.js            # Service worker (network-first nav, cache-first assets)
@@ -73,14 +80,15 @@ public/
 └── icon-*.png       # PWA icons
 
 e2e/
-├── smoke.spec.ts       # Critical pages load (5 tests)
+├── smoke.spec.ts       # Critical pages load (6 tests)
 ├── timer.spec.ts       # Timer interaction + keyboard shortcuts (11 tests)
 └── dashboard.spec.ts   # Dashboard period selector + stats (4 tests)
 
 .claude/skills/
-├── sprint/          # Sprint cycle (build → test → audit → PR)
-├── site-audit/      # Multi-reviewer quality audit
-└── pomodoro-check/  # Agent checks c3z's usage (auto-detects userId)
+├── sprint/            # Sprint cycle (build → test → audit → PR)
+├── site-audit/        # Multi-reviewer quality audit (Agent Access = 70% primary)
+├── pomodoro-check/    # Agent checks c3z's usage (prefers apom CLI)
+└── agent-onboarding/  # Guides new agents through setup + interpretation
 ```
 
 ## Conventions
@@ -89,16 +97,16 @@ e2e/
 - **Routes:** lowercase, React Router v7 file convention
 - **CSS:** Tailwind 4 with custom theme vars (pomored, breakgreen, surface)
 - **Font:** JetBrains Mono (monospace), Inter (sans)
-- **Tests:** Playwright E2E in `e2e/`, must pass before PR (20 tests)
+- **Tests:** Playwright E2E in `e2e/`, must pass before PR (21 tests)
 
 ## Quality Tracking
 
 Sprint cycle: brief → build → test → staging → audit → triage → compare → PR.
 Session summary and priorities in `s.md`.
 
-Current consolidated score: **8.2/10** (Sprint #7).
+Current consolidated score: **8.5/10** (Sprint #8).
 
-End-user is the main quality driver. Stop condition: >= 7.0/10, P1 = 0.
+Agent Access is the primary quality driver (70% weight). Old reviewers at 10% each (regression guard).
 
 ## Environment Variables
 
