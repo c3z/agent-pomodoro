@@ -261,6 +261,74 @@ async function cmdInterrupt(args) {
   }
 }
 
+async function cmdHeartbeat(args) {
+  const sourceIdx = args.indexOf("--source");
+  const source = sourceIdx >= 0 ? args[sourceIdx + 1] : "apom-cli";
+  const daemon = args.includes("--daemon");
+
+  const sendHeartbeat = async () => {
+    try {
+      await apiPost("/api/activity/heartbeat", { source });
+    } catch {
+      // fire-and-forget — silent on failure
+    }
+  };
+
+  if (daemon) {
+    // Daemon mode: send heartbeat every 30 seconds
+    await sendHeartbeat();
+    setInterval(sendHeartbeat, 30_000);
+    // Keep process alive
+    process.on("SIGINT", () => process.exit(0));
+    process.on("SIGTERM", () => process.exit(0));
+  } else {
+    await sendHeartbeat();
+  }
+}
+
+async function cmdAccountability(args) {
+  const daysIdx = args.indexOf("--days");
+  const days = daysIdx >= 0 ? parseInt(args[daysIdx + 1]) : 7;
+  const showShame = args.includes("--shame");
+
+  const data = await apiCall(`/api/activity/accountability?days=${days}`);
+
+  if (args.includes("--json")) {
+    if (showShame) {
+      const shame = await apiCall(`/api/activity/shame?days=${days}`);
+      console.log(JSON.stringify({ ...data, shame }, null, 2));
+    } else {
+      console.log(JSON.stringify(data, null, 2));
+    }
+    return;
+  }
+
+  console.log(`Accountability Score: ${data.score}%`);
+  console.log(`Verdict: ${data.verdict}`);
+  console.log(`Period: ${data.period || days + "d"}`);
+  console.log(`Protected windows: ${data.protectedWindows ?? 0}`);
+  console.log(`Unprotected windows: ${data.unprotectedWindows ?? 0}`);
+
+  if (data.totalHeartbeats !== undefined) {
+    console.log(`Total heartbeats: ${data.totalHeartbeats}`);
+  }
+
+  if (showShame) {
+    const shame = await apiCall(`/api/activity/shame?days=${days}`);
+    if (shame.windows && shame.windows.length > 0) {
+      console.log(`\nShame log (${shame.windows.length} unprotected windows):`);
+      for (const w of shame.windows) {
+        const start = new Date(w.start).toLocaleString("pl-PL");
+        const end = new Date(w.end).toLocaleString("pl-PL");
+        const duration = w.durationMinutes ? `${w.durationMinutes}min` : "";
+        console.log(`  ${start} — ${end} ${duration}`);
+      }
+    } else {
+      console.log("\nNo shame windows. Good job.");
+    }
+  }
+}
+
 function cmdConfig(args) {
   const subCmd = args[0];
 
@@ -377,6 +445,34 @@ function cmdHelpLlm() {
         endpoint: "POST /api/sessions/interrupt",
       },
       {
+        name: "heartbeat",
+        description: "Send activity heartbeat to track work presence. Silent on success.",
+        usage: "agent-pomodoro heartbeat [--daemon] [--source <name>]",
+        endpoint: "POST /api/activity/heartbeat",
+        parameters: {
+          source: { type: "string", default: "apom-cli", description: "Heartbeat source identifier" },
+          daemon: { type: "boolean", default: false, description: "Run in loop, sending every 30s" },
+        },
+      },
+      {
+        name: "accountability",
+        description: "Get accountability score — how much work time was protected by pomodoros",
+        usage: "agent-pomodoro accountability [--days N] [--shame] [--json]",
+        endpoint: "GET /api/activity/accountability",
+        parameters: {
+          days: { type: "integer", default: 7, max: 90 },
+          shame: { type: "boolean", default: false, description: "Include shame log of unprotected windows" },
+        },
+        response_example: {
+          score: 73,
+          verdict: "decent",
+          protectedWindows: 11,
+          unprotectedWindows: 4,
+          totalHeartbeats: 156,
+          period: "7d",
+        },
+      },
+      {
         name: "config",
         description: "Manage CLI configuration",
         subcommands: [
@@ -409,6 +505,10 @@ Usage:
   agent-pomodoro start [type] [min]  Start a session (default: work 25)
   agent-pomodoro stop [--notes ...]  Complete active session
   agent-pomodoro interrupt           Interrupt active session
+  agent-pomodoro heartbeat           Send activity heartbeat
+  agent-pomodoro heartbeat --daemon  Heartbeat every 30s (background)
+  agent-pomodoro accountability      Accountability score (default: 7d)
+  agent-pomodoro accountability --shame  Include shame log
   agent-pomodoro config set-key <k>  Set API key
   agent-pomodoro config set-url <u>  Set server URL
   agent-pomodoro config show         Show config
@@ -419,6 +519,10 @@ Flags:
   --json                Machine-readable JSON output
   --notes "text"        Notes for stop command
   --tags "a,b,c"        Tags for stop command (comma-separated)
+  --source "name"       Heartbeat source (default: apom-cli)
+  --days N              Period for accountability (default: 7)
+  --shame               Include shame log in accountability
+  --daemon              Run heartbeat in loop (every 30s)
 
 Env vars:
   APOM_API_KEY    API key (overrides config file)
@@ -448,6 +552,10 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdStop(args.slice(1));
 } else if (cmd === "interrupt" || cmd === "cancel") {
   await cmdInterrupt(args.slice(1));
+} else if (cmd === "heartbeat") {
+  await cmdHeartbeat(args.slice(1));
+} else if (cmd === "accountability") {
+  await cmdAccountability(args.slice(1));
 } else if (cmd === "config") {
   cmdConfig(args.slice(1));
 } else {
