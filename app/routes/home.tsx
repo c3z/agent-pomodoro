@@ -135,6 +135,34 @@ function GoalProgressBars({ userId }: { userId: string }) {
   );
 }
 
+function HabitWidget({ userId }: { userId: string }) {
+  const status = useQuery(api.habits.dailyStatus, { userId });
+  if (!status || status.total === 0) return null;
+
+  const { done, total, hubermanTarget } = status;
+  const pct = Math.round((done / total) * 100);
+
+  return (
+    <NavLink
+      to="/habits"
+      className="flex items-center justify-center gap-3 group"
+    >
+      <div className="flex items-center gap-1.5">
+        {status.habits.map((h: any) => (
+          <div
+            key={h._id}
+            className={`w-3 h-3 rounded-sm ${h.completed ? "bg-breakgreen" : "bg-surface-lighter"}`}
+            title={`${h.name}${h.completed ? " ✓" : ""}`}
+          />
+        ))}
+      </div>
+      <span className={`font-mono text-xs font-bold ${hubermanTarget?.met ? "text-breakgreen" : "text-gray-500"}`}>
+        {done}/{total} habits ({pct}%)
+      </span>
+    </NavLink>
+  );
+}
+
 export default function Home() {
   const userId = useUserId();
   const [periodDays, setPeriodDays] = useState(7);
@@ -171,6 +199,9 @@ export default function Home() {
           <GoalProgressBars userId={userId} />
         </div>
       )}
+
+      {/* Habit Status Widget */}
+      {userId && <HabitWidget userId={userId} />}
 
       {/* Weekly Heatmap */}
       <WeeklyHeatmap sessions={recentSessions} />
