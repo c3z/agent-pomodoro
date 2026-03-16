@@ -131,6 +131,28 @@ export const habitStats = query({
       // 21-day cycle progress
       const cycleDay = computeCycleDay(h.cycleStartedAt);
 
+      // 2-day bins (Huberman): pair consecutive days, count bins where at least 1 done
+      const dates = checkins
+        .filter((c: any) => c.completed)
+        .map((c: any) => c.date)
+        .sort();
+      const allDates: string[] = [];
+      for (let d = new Date(sinceDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
+        allDates.push(d.toISOString().slice(0, 10));
+      }
+      const completedSet = new Set(dates);
+      let totalBins = 0;
+      let completedBins = 0;
+      for (let i = 0; i < allDates.length; i += 2) {
+        totalBins++;
+        const d1 = completedSet.has(allDates[i]);
+        const d2 = i + 1 < allDates.length && completedSet.has(allDates[i + 1]);
+        if (d1 || d2) completedBins++;
+      }
+      const binCompletionRate = totalBins > 0
+        ? Math.round((completedBins / totalBins) * 100)
+        : 0;
+
       return {
         _id: h._id,
         name: h.name,
@@ -141,10 +163,47 @@ export const habitStats = query({
         completedDays,
         totalDays,
         completionRate,
+        binCompletionRate,
+        totalBins,
+        completedBins,
       };
     });
 
     return { period: `${days}d`, stats };
+  },
+});
+
+export const checkinCalendar = query({
+  args: {
+    userId: v.string(),
+    habitId: v.id("habits"),
+    days: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const numDays = args.days ?? 30;
+    const since = new Date();
+    since.setDate(since.getDate() - numDays);
+    const sinceDate = since.toISOString().slice(0, 10);
+
+    const checkins = await ctx.db
+      .query("habitCheckins")
+      .withIndex("by_habit_date", (q: any) =>
+        q.eq("habitId", args.habitId).gte("date", sinceDate)
+      )
+      .collect();
+
+    const completedDates = new Set(
+      checkins.filter((c: any) => c.completed).map((c: any) => c.date)
+    );
+
+    const calendar: { date: string; completed: boolean }[] = [];
+    for (let d = new Date(sinceDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
+      const ds = d.toISOString().slice(0, 10);
+      calendar.push({ date: ds, completed: completedDates.has(ds) });
+    }
+
+    return calendar;
   },
 });
 

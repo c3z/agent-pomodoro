@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import { useUserId } from "~/lib/useUserId";
 
 function HabitCheckbox({
@@ -199,6 +200,33 @@ function AddHabitForm({ userId, onClose }: { userId: string; onClose: () => void
   );
 }
 
+function HabitCalendar({ userId, habitId }: { userId: string; habitId: Id<"habits"> }) {
+  const calendar = useQuery(api.habits.checkinCalendar, { userId, habitId, days: 30 });
+  if (!calendar) return null;
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-mono font-bold text-gray-500 uppercase tracking-wider">
+        30-Day Grid
+      </h2>
+      <div className="flex flex-wrap gap-1">
+        {calendar.map((day: any) => (
+          <div
+            key={day.date}
+            className={`w-4 h-4 rounded-sm ${
+              day.completed ? "bg-breakgreen" : "bg-surface-lighter"
+            }`}
+            title={`${day.date}${day.completed ? " ✓" : ""}`}
+          />
+        ))}
+      </div>
+      <p className="text-gray-600 font-mono text-[10px]">
+        {calendar.filter((d: any) => d.completed).length}/{calendar.length} days
+      </p>
+    </div>
+  );
+}
+
 export default function Habits() {
   const userId = useUserId();
   const status = useQuery(
@@ -209,7 +237,12 @@ export default function Habits() {
     api.habits.cycleStatus,
     userId ? { userId } : "skip"
   );
+  const stats = useQuery(
+    api.habits.habitStats,
+    userId ? { userId, sinceDaysAgo: 30 } : "skip"
+  );
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedHabit, setSelectedHabit] = useState<Id<"habits"> | null>(null);
 
   if (!userId) return null;
 
@@ -284,6 +317,47 @@ export default function Habits() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Stats (2-day bins) */}
+      {stats && stats.stats.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-mono font-bold text-gray-500 uppercase tracking-wider">
+            Completion Rates (30d)
+          </h2>
+          <div className="space-y-2">
+            {stats.stats.map((s: any) => {
+              const barW = Math.min(100, s.binCompletionRate);
+              return (
+                <button
+                  key={s._id}
+                  onClick={() => setSelectedHabit(selectedHabit === s._id ? null : s._id)}
+                  className="w-full bg-surface-light rounded-lg p-3 text-left hover:bg-surface-lighter transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-mono text-xs text-gray-300">
+                      {s.name} {s.isLinchpin ? "★" : ""}
+                    </span>
+                    <span className="font-mono text-xs text-gray-500">
+                      {s.binCompletionRate}% bins · {s.completionRate}% daily
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-surface-lighter rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${s.binCompletionRate >= 85 ? "bg-breakgreen" : s.binCompletionRate >= 50 ? "bg-yellow-500" : "bg-red-400"}`}
+                      style={{ width: `${barW}%` }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 30-day Calendar (for selected habit) */}
+      {selectedHabit && userId && (
+        <HabitCalendar userId={userId} habitId={selectedHabit} />
       )}
 
       {/* Empty state */}
