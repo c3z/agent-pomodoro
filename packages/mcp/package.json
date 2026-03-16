@@ -1,0 +1,27 @@
+{
+  "name": "agent-pomodoro-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Agent Pomodoro — focus tracking for AI-assisted developers",
+  "type": "module",
+  "bin": {
+    "agent-pomodoro-mcp": "./index.mjs"
+  },
+  "files": [
+    "index.mjs"
+  ],
+  "keywords": [
+    "mcp",
+    "pomodoro",
+    "focus",
+    "ai-agent"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/c3z/agent-pomodoro",
+    "directory": "packages/mcp"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
