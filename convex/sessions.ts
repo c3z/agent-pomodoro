@@ -17,6 +17,7 @@ export const start = mutation({
       v.literal("longBreak")
     ),
     durationMinutes: v.number(),
+    currentTask: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
@@ -43,6 +44,7 @@ export const start = mutation({
       );
     }
 
+    const task = args.currentTask?.trim().slice(0, 200) || undefined;
     return await ctx.db.insert("pomodoroSessions", {
       userId: args.userId,
       type: args.type,
@@ -50,7 +52,32 @@ export const start = mutation({
       startedAt: Date.now(),
       completed: false,
       interrupted: false,
+      ...(task ? { currentTask: task } : {}),
     });
+  },
+});
+
+export const setTask = mutation({
+  args: {
+    userId: v.string(),
+    currentTask: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const recent = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .take(10);
+    const active = recent.find((s) => !s.completed && !s.interrupted);
+    if (!active) {
+      throw new Error("No active session to set task on");
+    }
+    const task = args.currentTask.trim().slice(0, 200);
+    await ctx.db.patch(active._id, {
+      currentTask: task || undefined,
+    });
+    return active._id;
   },
 });
 

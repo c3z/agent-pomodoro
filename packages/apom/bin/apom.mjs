@@ -181,6 +181,9 @@ async function cmdActive(args) {
     const remaining = Math.max(0, s.durationMinutes - elapsed);
     console.log(`Active: ${s.type} session (${s.durationMinutes}min)`);
     console.log(`Elapsed: ${elapsed}min, Remaining: ${remaining}min`);
+    if (s.currentTask) {
+      console.log(`Task: ${s.currentTask}`);
+    }
   } else {
     console.log("No active session.");
   }
@@ -189,7 +192,7 @@ async function cmdActive(args) {
 async function cmdStart(args) {
   const type = args[0] || "work";
   if (!["work", "break", "longBreak"].includes(type)) {
-    console.error("Usage: agent-pomodoro start [work|break|longBreak] [minutes]");
+    console.error("Usage: agent-pomodoro start [work|break|longBreak] [minutes] [--task \"...\"]");
     process.exit(1);
   }
 
@@ -198,7 +201,13 @@ async function cmdStart(args) {
     ? parseInt(durationArg)
     : type === "work" ? 25 : type === "break" ? 5 : 15;
 
-  const data = await apiPost("/api/sessions/start", { type, durationMinutes });
+  const taskIdx = args.indexOf("--task");
+  const currentTask = taskIdx >= 0 ? args[taskIdx + 1] : undefined;
+
+  const body = { type, durationMinutes };
+  if (currentTask) body.currentTask = currentTask;
+
+  const data = await apiPost("/api/sessions/start", body);
 
   // Track active session locally
   const config = loadConfig();
@@ -214,6 +223,25 @@ async function cmdStart(args) {
     console.log(JSON.stringify(data, null, 2));
   } else {
     console.log(`Started ${type} session (${durationMinutes}min)`);
+    if (currentTask) console.log(`Task: ${currentTask}`);
+    console.log(`Session: ${data.sessionId}`);
+  }
+}
+
+async function cmdTask(args) {
+  const subCmd = args[0];
+  if (subCmd !== "set" || !args[1]) {
+    console.error("Usage: agent-pomodoro task set \"description\"");
+    process.exit(1);
+  }
+
+  const currentTask = args.slice(1).filter((a) => a !== "--json").join(" ");
+  const data = await apiPost("/api/sessions/task", { currentTask });
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+  } else {
+    console.log(`Task set: ${currentTask}`);
     console.log(`Session: ${data.sessionId}`);
   }
 }
@@ -447,13 +475,24 @@ function cmdHelpLlm() {
       {
         name: "start",
         description: "Start a new pomodoro session (creates it on server, tracks locally). Idempotent: returns existing session if same type is already active. Returns 409 if different type is active.",
-        usage: "agent-pomodoro start [work|break|longBreak] [minutes] [--json]",
+        usage: "agent-pomodoro start [work|break|longBreak] [minutes] [--task \"description\"] [--json]",
         endpoint: "POST /api/sessions/start",
         parameters: {
           type: { type: "string", default: "work", enum: ["work", "break", "longBreak"] },
           durationMinutes: { type: "integer", default: 25 },
+          currentTask: { type: "string", optional: true, description: "What the user is working on (max 200 chars)" },
         },
-        response_example: { sessionId: "abc123", type: "work", durationMinutes: 25 },
+        response_example: { sessionId: "abc123", type: "work", durationMinutes: 25, currentTask: "building feature X" },
+      },
+      {
+        name: "task set",
+        description: "Set or update the current task description on the active session",
+        usage: "agent-pomodoro task set \"description\" [--json]",
+        endpoint: "POST /api/sessions/task",
+        parameters: {
+          currentTask: { type: "string", required: true, description: "Task description (max 200 chars)" },
+        },
+        response_example: { ok: true, sessionId: "abc123", currentTask: "building feature X" },
       },
       {
         name: "stop",
@@ -527,6 +566,8 @@ Usage:
   agent-pomodoro sessions [limit]    Recent sessions (default: 20)
   agent-pomodoro active              Show currently active session
   agent-pomodoro start [type] [min]  Start a session (default: work 25)
+  agent-pomodoro start work 25 --task "desc"  Start with task description
+  agent-pomodoro task set "desc"     Set task on active session
   agent-pomodoro stop [--notes ...]  Complete active session
   agent-pomodoro interrupt           Interrupt active session
   agent-pomodoro heartbeat           Send activity heartbeat
@@ -541,6 +582,7 @@ Usage:
 
 Flags:
   --json                Machine-readable JSON output
+  --task "text"         Task description for start command
   --notes "text"        Notes for stop command
   --tags "a,b,c"        Tags for stop command (comma-separated)
   --source "name"       Heartbeat source (default: apom-cli)
@@ -574,6 +616,8 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdActive(args.slice(1));
 } else if (cmd === "start") {
   await cmdStart(args.slice(1));
+} else if (cmd === "task") {
+  await cmdTask(args.slice(1));
 } else if (cmd === "stop" || cmd === "complete") {
   await cmdStop(args.slice(1));
 } else if (cmd === "interrupt" || cmd === "cancel") {

@@ -68,6 +68,7 @@ interface RemoteSession {
   type: TimerMode;
   durationMinutes: number;
   startedAt: number;
+  currentTask?: string;
 }
 
 interface TimerProps {
@@ -543,6 +544,11 @@ export function Timer({
           <span className="text-gray-500 text-sm font-mono mt-1">
             {MODE_LABELS[mode]}
           </span>
+          {remoteSession?.currentTask && (
+            <span className="text-gray-600 text-xs font-mono mt-1 max-w-[180px] sm:max-w-[220px] truncate text-center">
+              {remoteSession.currentTask}
+            </span>
+          )}
         </div>
       </div>
 

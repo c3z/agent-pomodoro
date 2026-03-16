@@ -15,6 +15,21 @@ description: |
 This skill lets Claude Code (Atropa) query c3z's Pomodoro usage and hold him accountable.
 Used proactively during morning routines, evening reviews, or when c3z seems distracted.
 
+## Proactive Check
+
+Run `agent-pomodoro active` at the start of **every** conversation. This is the PRIMARY check — do it before anything else.
+
+```bash
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro active
+```
+
+If no session is active and it's during work hours (9:00-18:00 CET):
+1. Suggest starting one: "Cezary, brak aktywnej sesji. Odpalamy pomodoro?"
+2. If he agrees (or doesn't object), start it: `agent-pomodoro start work 25 --task "context from conversation"`
+3. If a session IS active, note the task and remaining time — use it as context.
+
+Then follow up with `agent-pomodoro status` for the full picture.
+
 ## How to Check (preferred: `agent-pomodoro` CLI)
 
 API key is stored in sec. Always load it before running agent-pomodoro:
@@ -65,9 +80,11 @@ Shows currently running session with elapsed/remaining time, or "No active sessi
 ### Start / stop / interrupt sessions
 ```bash
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro start                      # default: work 25min
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro start work 25 --task "building feature X"  # with task
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro start work 45              # work 45min
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro start break                # break 5min
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro start longBreak            # longBreak 15min
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro task set "refactoring auth module"  # update task mid-session
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro stop --notes "deep coding" --tags "code,refactor"
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro interrupt                  # cancel active session
 ```
@@ -104,7 +121,8 @@ agent-pomodoro --help-llm    # full JSON schema for agents (no key needed)
 | `sessions today [--json]` | List today's sessions |
 | `sessions [limit] [--json]` | Recent sessions (default: 20, max: 200) |
 | `active [--json]` | Show currently running session |
-| `start [type] [min] [--json]` | Start session (work/break/longBreak, default: work 25) |
+| `start [type] [min] [--task "..."] [--json]` | Start session (work/break/longBreak, default: work 25) |
+| `task set "description" [--json]` | Set/update task on active session |
 | `stop [--notes "..."] [--tags "a,b"] [--json]` | Complete active session |
 | `interrupt [--json]` | Cancel active session |
 | `heartbeat [--daemon] [--source name]` | Send activity heartbeat |

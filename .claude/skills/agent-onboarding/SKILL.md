@@ -64,7 +64,8 @@ If you get an error, check:
 | `agent-pomodoro sessions today` | List today's sessions |
 | `agent-pomodoro sessions [limit]` | List recent sessions (default: 20, max: 200) |
 | `agent-pomodoro active` | Show currently running session (elapsed/remaining) |
-| `agent-pomodoro start [type] [min]` | Start a session (work/break/longBreak, default: work 25) |
+| `agent-pomodoro start [type] [min] [--task "..."]` | Start a session with optional task description |
+| `agent-pomodoro task set "description"` | Set/update task on active session |
 | `agent-pomodoro stop [--notes "..."] [--tags "a,b"]` | Complete active session with optional metadata |
 | `agent-pomodoro interrupt` | Cancel the active session |
 | `agent-pomodoro heartbeat` | Send a single activity heartbeat |
@@ -164,7 +165,8 @@ curl -X POST -H "Authorization: Bearer apom_xxx" -H "Content-Type: application/j
 | GET | `/api/sessions/today` | Today's sessions |
 | GET | `/api/sessions?limit=N` | Recent sessions |
 | GET | `/api/sessions/active` | Currently running session |
-| POST | `/api/sessions/start` | Start a new session |
+| POST | `/api/sessions/start` | Start a new session (accepts `currentTask`) |
+| POST | `/api/sessions/task` | Set task on active session |
 | POST | `/api/sessions/complete` | Complete a session |
 | POST | `/api/sessions/interrupt` | Interrupt a session |
 | POST | `/api/activity/heartbeat` | Record work activity heartbeat |
@@ -197,9 +199,52 @@ Be direct. Example:
 Acknowledge briefly, don't over-celebrate:
 > "8 sessions, 3.2h focus, 4-day streak. Solid. Keep going."
 
+## Auto-Start Sessions
+
+Agents can automatically start pomodoro sessions for the human. This is the proactive loop:
+
+### Workflow: check active -> start -> monitor -> complete
+
+```bash
+# 1. Check if a session is already running
+agent-pomodoro active
+
+# 2. If no active session, start one with task context
+agent-pomodoro start work 25 --task "building feature X"
+
+# 3. Mid-session: update task if focus shifts
+agent-pomodoro task set "refactoring auth module"
+
+# 4. When done: complete with notes and tags
+agent-pomodoro stop --notes "finished auth refactor" --tags "code,refactor"
+```
+
+### Idempotency guard
+
+It is **safe to call `start` even if a session is already running**:
+- If a session of the **same type** is active, `start` returns the existing session ID (no duplicate created).
+- If a session of a **different type** is active, `start` returns HTTP 409 (conflict) — the agent should handle this gracefully.
+
+This means agents can run `start` at the beginning of every conversation without worrying about creating duplicate sessions.
+
+### Task descriptions
+
+Use `--task` when starting sessions to record what the human is working on:
+```bash
+agent-pomodoro start work 25 --task "sprint #19 implementation"
+```
+
+Update mid-session if the focus shifts:
+```bash
+agent-pomodoro task set "debugging CI pipeline"
+```
+
+Task descriptions appear in the Timer UI and in `active` output, giving both the human and other agents context about current work.
+
 ## Integration Tips
 
-- Check `agent-pomodoro status` at the start of each conversation to set context
+- Check `agent-pomodoro active` at the start of each conversation — this is faster and more actionable than `status`
+- If no session is active during work hours, suggest (or auto-start) one
 - If the human is procrastinating, remind them of their streak
 - Use `agent-pomodoro stats 30 --json` for trend analysis
 - The `completionRate` field is the most telling metric — low completion means the human starts but gets distracted
