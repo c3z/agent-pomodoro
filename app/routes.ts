@@ -5,6 +5,7 @@ export default [
     index("routes/home.tsx"),
     route("timer", "routes/timer.tsx"),
     route("history", "routes/history.tsx"),
+    route("habits", "routes/habits.tsx"),
     route("accountability", "routes/accountability.tsx"),
     route("settings", "routes/settings.tsx"),
     route("sign-in/*", "routes/sign-in.tsx"),
