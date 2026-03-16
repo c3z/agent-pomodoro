@@ -18,6 +18,41 @@ const DEFAULT_CONFIG: TimerConfig = {
   longBreakInterval: 4,
 };
 
+const TIMER_STATE_KEY = "apom_timer_state";
+
+interface PersistedTimerState {
+  mode: TimerMode;
+  endTime: number; // 0 if not running
+  isRunning: boolean;
+  isPaused: boolean;
+  completedPomodoros: number;
+  startedRef: boolean;
+  completedRef: boolean;
+  secondsLeft: number;
+}
+
+function persistTimerState(state: PersistedTimerState) {
+  try {
+    localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+function loadTimerState(): PersistedTimerState | null {
+  try {
+    const raw = localStorage.getItem(TIMER_STATE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as PersistedTimerState;
+  } catch {
+    return null;
+  }
+}
+
+function clearTimerState() {
+  try {
+    localStorage.removeItem(TIMER_STATE_KEY);
+  } catch {}
+}
+
 const MODE_LABELS: Record<TimerMode, string> = {
   work: "FOCUS",
   break: "BREAK",
@@ -63,19 +98,45 @@ export function Timer({
   remoteSession,
   onRemoteSessionSync,
 }: TimerProps) {
-  const [mode, setMode] = useState<TimerMode>("work");
-  const [secondsLeft, setSecondsLeft] = useState(DEFAULT_CONFIG.work * 60);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [completedPomodoros, setCompletedPomodoros] = useState(0);
+  // Hydrate from localStorage if available
+  const savedState = useRef(loadTimerState());
+
+  const [mode, setMode] = useState<TimerMode>(
+    savedState.current?.mode ?? "work"
+  );
+  const [secondsLeft, setSecondsLeft] = useState(() => {
+    const s = savedState.current;
+    if (!s) return DEFAULT_CONFIG.work * 60;
+    if (s.isRunning && s.endTime > 0) {
+      // Timer was running — calculate remaining from wall clock
+      const remaining = Math.max(0, Math.ceil((s.endTime - Date.now()) / 1000));
+      return remaining;
+    }
+    return s.secondsLeft;
+  });
+  const [isRunning, setIsRunning] = useState(() => {
+    const s = savedState.current;
+    if (!s) return false;
+    if (s.isRunning && s.endTime > 0) {
+      // Only restore running if time hasn't expired
+      return s.endTime > Date.now();
+    }
+    return false;
+  });
+  const [isPaused, setIsPaused] = useState(
+    savedState.current?.isPaused ?? false
+  );
+  const [completedPomodoros, setCompletedPomodoros] = useState(
+    savedState.current?.completedPomodoros ?? 0
+  );
   const [showCompletion, setShowCompletion] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
   const [completionTags, setCompletionTags] = useState<string[]>([]);
 
   // Wall-clock anchor: when the timer should end
-  const endTimeRef = useRef<number>(0);
+  const endTimeRef = useRef<number>(savedState.current?.endTime ?? 0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startedRef = useRef(false);
+  const startedRef = useRef(savedState.current?.startedRef ?? false);
 
   // Wake Lock — keep screen on during active timer
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -94,6 +155,25 @@ export function Timer({
 
   // Release wake lock on unmount (e.g. navigating away from /timer)
   useEffect(() => () => releaseWakeLock(), []);
+
+  // On mount: handle restored state
+  useEffect(() => {
+    const s = savedState.current;
+    if (!s) return;
+    // Timer was running but expired while we were away
+    if (s.isRunning && s.endTime > 0 && s.endTime <= Date.now()) {
+      // secondsLeft = 0, isRunning = false, completedRef = true
+      // The completion detection effect will handle the rest
+      playCompletionSound(s.mode);
+      clearTimerState();
+      startedRef.current = false;
+    }
+    // Timer is still actively running — re-acquire wake lock
+    if (s.isRunning && s.endTime > Date.now()) {
+      requestWakeLock();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync with remotely-started sessions (e.g. via CLI or API)
   const syncedSessionRef = useRef<string | null>(null);
@@ -115,13 +195,24 @@ export function Timer({
     syncedSessionRef.current = remoteSession._id;
     setMode(remoteSession.type);
     setSecondsLeft(remaining);
-    endTimeRef.current = Date.now() + remaining * 1000;
+    const newEndTime = Date.now() + remaining * 1000;
+    endTimeRef.current = newEndTime;
     startedRef.current = true;
     completedRef.current = true;
     setIsRunning(true);
     setIsPaused(false);
     requestWakeLock();
     onRemoteSessionSync?.(remoteSession._id);
+    persistTimerState({
+      mode: remoteSession.type,
+      endTime: newEndTime,
+      isRunning: true,
+      isPaused: false,
+      completedPomodoros,
+      startedRef: true,
+      completedRef: true,
+      secondsLeft: remaining,
+    });
   }, [remoteSession]);
 
   // Stable refs for callbacks to avoid useEffect dependency issues
@@ -174,6 +265,7 @@ export function Timer({
 
         playCompletionSound(modeRef.current);
         releaseWakeLock();
+        clearTimerState();
       }
     };
 
@@ -188,7 +280,7 @@ export function Timer({
   }, [isRunning]);
 
   // Detect completion: secondsLeft hit 0 and timer stopped
-  const completedRef = useRef(false);
+  const completedRef = useRef(savedState.current?.completedRef ?? false);
   const modeRef = useRef(mode);
   modeRef.current = mode;
 
@@ -207,6 +299,16 @@ export function Timer({
       onCompleteRef.current?.(currentMode);
       setMode("work");
       setSecondsLeft(DEFAULT_CONFIG.work * 60);
+      persistTimerState({
+        mode: "work",
+        endTime: 0,
+        isRunning: false,
+        isPaused: false,
+        completedPomodoros,
+        startedRef: false,
+        completedRef: false,
+        secondsLeft: DEFAULT_CONFIG.work * 60,
+      });
     }
   }, [secondsLeft, isRunning]);
 
@@ -223,7 +325,18 @@ export function Timer({
         ? "longBreak"
         : "break";
     setMode(nextMode);
-    setSecondsLeft(DEFAULT_CONFIG[nextMode] * 60);
+    const nextSeconds = DEFAULT_CONFIG[nextMode] * 60;
+    setSecondsLeft(nextSeconds);
+    persistTimerState({
+      mode: nextMode,
+      endTime: 0,
+      isRunning: false,
+      isPaused: false,
+      completedPomodoros: newCount,
+      startedRef: false,
+      completedRef: false,
+      secondsLeft: nextSeconds,
+    });
   };
 
   const handleCompletionSubmit = () => {
@@ -308,11 +421,22 @@ export function Timer({
       completedRef.current = true; // arm completion detection
       onStartRef.current?.(mode, DEFAULT_CONFIG[mode]);
     }
-    endTimeRef.current = Date.now() + secondsLeft * 1000;
+    const newEndTime = Date.now() + secondsLeft * 1000;
+    endTimeRef.current = newEndTime;
     setIsRunning(true);
     setIsPaused(false);
     playStartSound();
     requestWakeLock();
+    persistTimerState({
+      mode,
+      endTime: newEndTime,
+      isRunning: true,
+      isPaused: false,
+      completedPomodoros,
+      startedRef: startedRef.current,
+      completedRef: completedRef.current,
+      secondsLeft,
+    });
   };
 
   const pause = () => {
@@ -325,6 +449,16 @@ export function Timer({
       Math.ceil((endTimeRef.current - Date.now()) / 1000)
     );
     setSecondsLeft(remaining);
+    persistTimerState({
+      mode,
+      endTime: 0,
+      isRunning: false,
+      isPaused: true,
+      completedPomodoros,
+      startedRef: startedRef.current,
+      completedRef: completedRef.current,
+      secondsLeft: remaining,
+    });
   };
 
   const stop = () => {
@@ -339,6 +473,7 @@ export function Timer({
       completedRef.current = false;
     }
     setSecondsLeft(DEFAULT_CONFIG[mode] * 60);
+    clearTimerState();
   };
 
   // Keep keyboard refs current
@@ -356,6 +491,7 @@ export function Timer({
     setMode(newMode);
     setIsPaused(false);
     setSecondsLeft(DEFAULT_CONFIG[newMode] * 60);
+    clearTimerState();
   };
 
   return (
