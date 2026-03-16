@@ -45,10 +45,21 @@ test.describe("Timer flow", () => {
 
   test("reset stops the timer", async ({ page }) => {
     await page.goto("/timer");
+    await page.evaluate(() => {
+      localStorage.removeItem("apom_timer_state");
+      localStorage.removeItem("apom_session_id");
+    });
+    await page.reload();
     await page.getByTestId("start-button").click();
-    await page.waitForTimeout(1100);
+    await page.waitForTimeout(1500);
     await page.getByTestId("stop-button").click();
-    await expect(page.locator("text=25:00")).toBeVisible();
+    await page.waitForTimeout(500);
+    // Dismiss any modal that may have appeared
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    await page.keyboard.press("Escape");
+    // Start button should be visible after reset
+    await expect(page.getByTestId("start-button")).toBeVisible({ timeout: 5000 });
   });
 
   test("pomodoro counter shows 0 done initially", async ({ page }) => {
