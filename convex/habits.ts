@@ -173,6 +173,86 @@ export const habitStats = query({
   },
 });
 
+// Cross-correlation: pomodoro performance on habit-done vs habit-missed days
+export const habitPomodoroCorrelation = query({
+  args: { userId: v.string(), sinceDaysAgo: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const days = args.sinceDaysAgo ?? 30;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceDate = since.toISOString().slice(0, 10);
+    const sinceTs = since.getTime();
+
+    const habits = await getActiveHabits(ctx, args.userId);
+    if (habits.length === 0) return { correlations: [] };
+
+    const checkins = await ctx.db
+      .query("habitCheckins")
+      .withIndex("by_user_date", (q: any) =>
+        q.eq("userId", args.userId).gte("date", sinceDate)
+      )
+      .collect();
+
+    const sessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q: any) =>
+        q.eq("userId", args.userId).gte("startedAt", sinceTs)
+      )
+      .collect();
+
+    const workSessions = sessions.filter((s: any) => s.type === "work" && s.completed);
+
+    // Group sessions by date
+    const sessionsByDate = new Map<string, any[]>();
+    for (const s of workSessions) {
+      const date = new Date(s.startedAt).toISOString().slice(0, 10);
+      const list = sessionsByDate.get(date) ?? [];
+      list.push(s);
+      sessionsByDate.set(date, list);
+    }
+
+    // Per-habit: compare pomodoro count on done vs missed days
+    const correlations = habits.map((h: any) => {
+      const habitCheckins = checkins.filter((c: any) => c.habitId === h._id);
+      const doneDates = new Set(
+        habitCheckins.filter((c: any) => c.completed).map((c: any) => c.date)
+      );
+
+      let donePomodoros = 0, doneDayCount = 0;
+      let missedPomodoros = 0, missedDayCount = 0;
+
+      for (const [date, daySessions] of sessionsByDate) {
+        if (doneDates.has(date)) {
+          donePomodoros += daySessions.length;
+          doneDayCount++;
+        } else {
+          missedPomodoros += daySessions.length;
+          missedDayCount++;
+        }
+      }
+
+      const avgDone = doneDayCount > 0 ? Math.round((donePomodoros / doneDayCount) * 10) / 10 : 0;
+      const avgMissed = missedDayCount > 0 ? Math.round((missedPomodoros / missedDayCount) * 10) / 10 : 0;
+      const delta = avgDone > 0 && avgMissed > 0
+        ? Math.round(((avgDone - avgMissed) / avgMissed) * 100)
+        : 0;
+
+      return {
+        habitName: h.name,
+        isLinchpin: h.isLinchpin,
+        avgPomodorosOnDoneDays: avgDone,
+        avgPomodorosOnMissedDays: avgMissed,
+        deltaPct: delta,
+        doneDays: doneDayCount,
+        missedDays: missedDayCount,
+      };
+    });
+
+    return { period: `${days}d`, correlations };
+  },
+});
+
 export const checkinCalendar = query({
   args: {
     userId: v.string(),

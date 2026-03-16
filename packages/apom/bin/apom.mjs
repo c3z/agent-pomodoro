@@ -660,6 +660,29 @@ async function cmdHabits(args) {
         }
       }
     }
+  } else if (subCmd === "correlation") {
+    const daysArg = args.find((a) => /^\d+d?$/.test(a));
+    const days = daysArg ? parseInt(daysArg) : 30;
+    const data = await apiCall(`/api/habits/correlation?days=${days}`);
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      if (data.correlations.length === 0) {
+        console.log("No correlation data yet.");
+      } else {
+        console.log(`Habit × Pomodoro correlation (${data.period}):\n`);
+        for (const c of data.correlations) {
+          const pin = c.isLinchpin ? " ★" : "";
+          const arrow = c.deltaPct > 0 ? "↑" : c.deltaPct < 0 ? "↓" : "→";
+          const sign = c.deltaPct > 0 ? "+" : "";
+          console.log(`  ${c.habitName}${pin}`);
+          console.log(`    Done days: ${c.avgPomodorosOnDoneDays} avg pomodoros (${c.doneDays}d)`);
+          console.log(`    Missed:    ${c.avgPomodorosOnMissedDays} avg pomodoros (${c.missedDays}d)`);
+          console.log(`    Impact:    ${arrow} ${sign}${c.deltaPct}%\n`);
+        }
+      }
+    }
   } else {
     // Default: show today's habits
     const data = await apiCall("/api/habits/today");

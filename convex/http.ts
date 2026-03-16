@@ -78,7 +78,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/stats/rhythm", "/api/stats/debt", "/api/stats/trends", "/api/retro", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/sessions/commits", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals", "/api/habits", "/api/habits/today", "/api/habits/stats", "/api/habits/cycle", "/api/habits/checkin", "/api/habits/uncheckin", "/api/habits/archive", "/api/habits/update"]) {
+for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/stats/rhythm", "/api/stats/debt", "/api/stats/trends", "/api/retro", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/sessions/commits", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals", "/api/habits", "/api/habits/today", "/api/habits/stats", "/api/habits/cycle", "/api/habits/checkin", "/api/habits/uncheckin", "/api/habits/archive", "/api/habits/update", "/api/habits/correlation"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -893,6 +893,22 @@ http.route({
       userId: auth.userId,
     });
     return jsonResponse({ cycles });
+  }),
+});
+
+// GET /api/habits/correlation?days=30 — pomodoro × habit cross-correlation
+http.route({
+  path: "/api/habits/correlation",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const sinceDaysAgo = parseDaysParam(request, 30, 365);
+    const data = await ctx.runQuery(api.habits.habitPomodoroCorrelation, {
+      userId: auth.userId,
+      sinceDaysAgo,
+    });
+    return jsonResponse(data);
   }),
 });
 

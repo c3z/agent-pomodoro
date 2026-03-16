@@ -241,6 +241,10 @@ export default function Habits() {
     api.habits.habitStats,
     userId ? { userId, sinceDaysAgo: 30 } : "skip"
   );
+  const correlation = useQuery(
+    api.habits.habitPomodoroCorrelation,
+    userId ? { userId, sinceDaysAgo: 30 } : "skip"
+  );
   const [showAdd, setShowAdd] = useState(false);
   const [selectedHabit, setSelectedHabit] = useState<Id<"habits"> | null>(null);
 
@@ -358,6 +362,39 @@ export default function Habits() {
       {/* 30-day Calendar (for selected habit) */}
       {selectedHabit && userId && (
         <HabitCalendar userId={userId} habitId={selectedHabit} />
+      )}
+
+      {/* Pomodoro × Habit Correlation */}
+      {correlation && correlation.correlations.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-mono font-bold text-gray-500 uppercase tracking-wider">
+            Habit × Pomodoro Impact
+          </h2>
+          <div className="space-y-2">
+            {correlation.correlations.filter((c: any) => c.doneDays > 0 && c.missedDays > 0).map((c: any) => (
+              <div key={c.habitName} className="bg-surface-light rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs text-gray-300">
+                    {c.habitName} {c.isLinchpin ? "★" : ""}
+                  </span>
+                  <span className={`font-mono text-xs font-bold ${
+                    c.deltaPct > 10 ? "text-breakgreen" : c.deltaPct < -10 ? "text-red-400" : "text-gray-500"
+                  }`}>
+                    {c.deltaPct > 0 ? "+" : ""}{c.deltaPct}%
+                  </span>
+                </div>
+                <div className="flex gap-4 mt-1">
+                  <span className="text-[10px] font-mono text-gray-600">
+                    Done: {c.avgPomodorosOnDoneDays} avg ({c.doneDays}d)
+                  </span>
+                  <span className="text-[10px] font-mono text-gray-600">
+                    Missed: {c.avgPomodorosOnMissedDays} avg ({c.missedDays}d)
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Empty state */}
