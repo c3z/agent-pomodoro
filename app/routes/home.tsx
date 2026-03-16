@@ -6,12 +6,64 @@ import { SessionList } from "~/components/SessionList";
 import { AccountabilityBadge } from "~/components/AccountabilityBadge";
 import { NavLink } from "react-router";
 import { useUserId } from "~/lib/useUserId";
+import {
+  computeAccountability,
+  loadWorkdayHours,
+  scoreColor,
+  gradeColor,
+} from "~/lib/accountability";
 
 const PERIOD_OPTIONS = [
   { label: "7d", days: 7 },
   { label: "30d", days: 30 },
   { label: "All", days: 3650 },
 ] as const;
+
+function DashboardScore({ userId }: { userId: string }) {
+  const data = useQuery(
+    api.sessions.accountabilityToday,
+    userId ? { userId } : "skip"
+  );
+
+  if (!data) return null;
+
+  const workday = loadWorkdayHours();
+  const acc = computeAccountability(
+    data.todaySessions,
+    undefined,
+    workday.start,
+    workday.end
+  );
+
+  // Only show during workday hours
+  if (!acc.workdayStarted) return null;
+
+  return (
+    <NavLink
+      to="/accountability"
+      className="flex flex-col items-center gap-1 group"
+    >
+      <div className="flex items-baseline">
+        <span
+          className={`text-6xl font-mono font-bold tabular-nums ${scoreColor(
+            acc.score
+          )} group-hover:opacity-80 transition-opacity`}
+        >
+          {acc.score}
+        </span>
+        <span className="text-gray-500 text-xl font-mono ml-1">%</span>
+      </div>
+      <span
+        className={`text-2xl font-mono font-bold ${gradeColor(acc.grade)}`}
+      >
+        {acc.grade}
+      </span>
+      <span className="text-gray-600 font-mono text-xs">
+        accountability today
+      </span>
+    </NavLink>
+  );
+}
 
 export default function Home() {
   const userId = useUserId();
@@ -35,6 +87,9 @@ export default function Home() {
           Focus tracking for humans supervised by AI agents
         </p>
       </div>
+
+      {/* Big Accountability Score */}
+      {userId && <DashboardScore userId={userId} />}
 
       <div className="flex justify-center gap-1">
         {PERIOD_OPTIONS.map((opt) => (
