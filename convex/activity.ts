@@ -78,6 +78,30 @@ export const getAccountability = internalQuery({
         ? 100
         : Math.round((protectedWindows / totalWindows) * 100);
 
+    // Per-day breakdown
+    const dailyScores: { date: string; score: number; totalWindows: number; protectedWindows: number }[] = [];
+    const dayMap = new Map<string, { total: number; protected: number }>();
+
+    for (const r of records) {
+      const d = new Date(r.windowStart);
+      const dateKey = d.toISOString().slice(0, 10);
+      const entry = dayMap.get(dateKey) || { total: 0, protected: 0 };
+      entry.total++;
+      if (r.hadActivePomodoro) entry.protected++;
+      dayMap.set(dateKey, entry);
+    }
+
+    // Sort by date ascending
+    const sortedDays = [...dayMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+    for (const [date, counts] of sortedDays) {
+      dailyScores.push({
+        date,
+        score: counts.total === 0 ? 100 : Math.round((counts.protected / counts.total) * 100),
+        totalWindows: counts.total,
+        protectedWindows: counts.protected,
+      });
+    }
+
     return {
       period: `${days}d`,
       score,
@@ -90,6 +114,7 @@ export const getAccountability = internalQuery({
           : score >= 50
             ? "inconsistent"
             : "chaotic",
+      dailyScores,
     };
   },
 });
