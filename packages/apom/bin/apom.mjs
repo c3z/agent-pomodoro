@@ -290,17 +290,21 @@ async function cmdInterrupt(args) {
     process.exit(1);
   }
 
-  await apiPost("/api/sessions/interrupt", {
-    sessionId: active.sessionId,
-  });
+  const reasonIdx = args.indexOf("--reason");
+  const reason = reasonIdx >= 0 ? args[reasonIdx + 1] : undefined;
+
+  const body = { sessionId: active.sessionId };
+  if (reason) body.reason = reason;
+
+  await apiPost("/api/sessions/interrupt", body);
 
   delete config.activeSession;
   saveConfig(config);
 
   if (args.includes("--json")) {
-    console.log(JSON.stringify({ ok: true, interrupted: active.type }));
+    console.log(JSON.stringify({ ok: true, interrupted: active.type, ...(reason ? { reason } : {}) }));
   } else {
-    console.log(`Interrupted ${active.type} session.`);
+    console.log(`Interrupted ${active.type} session.${reason ? ` Reason: ${reason}` : ""}`);
   }
 }
 
@@ -433,6 +437,49 @@ async function cmdDailySummary(args) {
         const task = sess.currentTask ? ` — ${sess.currentTask}` : "";
         console.log(`- ${time} ${sess.durationMinutes}min ${sess.type} (${status})${tags}${task}`);
       }
+    }
+  }
+}
+
+async function cmdGoals(args) {
+  const subCmd = args[0];
+
+  if (subCmd === "set") {
+    const body = {};
+    const dailyIdx = args.indexOf("--daily");
+    if (dailyIdx >= 0) {
+      const v = parseInt(args[dailyIdx + 1]);
+      if (Number.isFinite(v)) body.dailyPomodoros = v;
+    }
+    const weeklyIdx = args.indexOf("--weekly");
+    if (weeklyIdx >= 0) {
+      const v = parseInt(args[weeklyIdx + 1]);
+      if (Number.isFinite(v)) body.weeklyFocusHours = v;
+    }
+
+    if (body.dailyPomodoros === undefined && body.weeklyFocusHours === undefined) {
+      console.error("Usage: agent-pomodoro goals set --daily 8 --weekly 25");
+      process.exit(1);
+    }
+
+    await apiPost("/api/goals", body);
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify({ ok: true, ...body }));
+    } else {
+      if (body.dailyPomodoros) console.log(`Daily target: ${body.dailyPomodoros} pomodoros`);
+      if (body.weeklyFocusHours) console.log(`Weekly target: ${body.weeklyFocusHours}h focus`);
+      console.log("Goals updated.");
+    }
+  } else {
+    const data = await apiCall("/api/goals");
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      console.log(`Goals:`);
+      console.log(`  Daily: ${data.progress.todayPomodoros}/${data.goals.dailyPomodoros} pomodoros`);
+      console.log(`  Weekly: ${data.progress.weeklyFocusHours}/${data.goals.weeklyFocusHours}h focus`);
     }
   }
 }
@@ -588,9 +635,32 @@ function cmdHelpLlm() {
       },
       {
         name: "interrupt",
-        description: "Interrupt (cancel) the active session",
-        usage: "agent-pomodoro interrupt [--json]",
+        description: "Interrupt (cancel) the active session with optional reason",
+        usage: "agent-pomodoro interrupt [--reason \"...\"] [--json]",
         endpoint: "POST /api/sessions/interrupt",
+        parameters: {
+          reason: { type: "string", optional: true, description: "Why the session was interrupted (distraction, emergency, meeting, wrong task, other)" },
+        },
+      },
+      {
+        name: "goals",
+        description: "Show current goals and progress toward daily pomodoro and weekly focus hour targets",
+        usage: "agent-pomodoro goals [--json]",
+        endpoint: "GET /api/goals",
+        response_example: {
+          goals: { dailyPomodoros: 6, weeklyFocusHours: 20 },
+          progress: { todayPomodoros: 3, weeklyFocusHours: 8.5 },
+        },
+      },
+      {
+        name: "goals set",
+        description: "Set daily pomodoro and/or weekly focus hour targets",
+        usage: "agent-pomodoro goals set --daily 8 --weekly 25 [--json]",
+        endpoint: "POST /api/goals",
+        parameters: {
+          dailyPomodoros: { type: "integer", optional: true, description: "Daily pomodoro target (1-50)" },
+          weeklyFocusHours: { type: "integer", optional: true, description: "Weekly focus hours target (1-100)" },
+        },
       },
       {
         name: "heartbeat",
@@ -707,7 +777,9 @@ Usage:
   agent-pomodoro start work 25 --task "desc"  Start with task description
   agent-pomodoro task set "desc"     Set task on active session
   agent-pomodoro stop [--notes ...]  Complete active session
-  agent-pomodoro interrupt           Interrupt active session
+  agent-pomodoro interrupt [--reason "..."]  Interrupt active session
+  agent-pomodoro goals               Show goals + progress
+  agent-pomodoro goals set --daily 8 --weekly 25  Set goals
   agent-pomodoro heartbeat           Send activity heartbeat
   agent-pomodoro heartbeat --daemon  Heartbeat every 30s (background)
   agent-pomodoro accountability      Accountability score (default: 7d)
@@ -730,6 +802,9 @@ Flags:
   --source "name"       Heartbeat source (default: apom-cli)
   --days N              Period for accountability (default: 7)
   --shame               Include shame log in accountability
+  --reason "text"       Interruption reason (for interrupt command)
+  --daily N             Daily pomodoro target (for goals set)
+  --weekly N            Weekly focus hours target (for goals set)
   --daemon              Run heartbeat in loop (every 30s)
 
 Env vars:
@@ -774,6 +849,8 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdDailySummary(args.slice(1));
 } else if (cmd === "tags") {
   await cmdTags(args.slice(1));
+} else if (cmd === "goals") {
+  await cmdGoals(args.slice(1));
 } else if (cmd === "config") {
   cmdConfig(args.slice(1));
 } else {

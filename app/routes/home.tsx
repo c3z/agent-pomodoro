@@ -66,6 +66,75 @@ function DashboardScore({ userId }: { userId: string }) {
   );
 }
 
+function GoalProgressBars({ userId }: { userId: string }) {
+  const goals = useQuery(api.goals.getGoals, { userId });
+  const todaySessions = useQuery(api.sessions.todayByUser, { userId });
+  const weekStats = useQuery(api.sessions.stats, { userId, sinceDaysAgo: 7 });
+
+  if (!goals || !todaySessions || !weekStats) return null;
+
+  const todayCompleted = todaySessions.filter(
+    (s) => s.type === "work" && s.completed
+  ).length;
+  const dailyTarget = goals.dailyPomodoros;
+  const dailyPct = Math.min(100, Math.round((todayCompleted / dailyTarget) * 100));
+
+  const weeklyHours = weekStats.totalFocusHours;
+  const weeklyTarget = goals.weeklyFocusHours;
+  const weeklyPct = Math.min(100, Math.round((weeklyHours / weeklyTarget) * 100));
+
+  // Calculate if behind pace for daily (based on hours elapsed in workday 9-18)
+  const now = new Date();
+  const workdayHour = Math.max(0, Math.min(9, now.getHours() - 9));
+  const expectedDailyPct = Math.round((workdayHour / 9) * 100);
+  const dailyOnTrack = dailyPct >= expectedDailyPct || todayCompleted >= dailyTarget;
+
+  // Weekly pace: days passed this week (Mon=1)
+  const dayOfWeek = now.getDay() === 0 ? 7 : now.getDay();
+  const expectedWeeklyPct = Math.round((dayOfWeek / 7) * 100);
+  const weeklyOnTrack = weeklyPct >= expectedWeeklyPct || weeklyHours >= weeklyTarget;
+
+  return (
+    <div className="w-full max-w-md space-y-3">
+      {/* Daily progress */}
+      <div>
+        <div className="flex justify-between items-baseline mb-1">
+          <span className="text-gray-400 font-mono text-xs">Today</span>
+          <span className={`font-mono text-xs font-bold ${dailyOnTrack ? "text-breakgreen" : "text-red-400"}`}>
+            {todayCompleted}/{dailyTarget} pomodoros
+          </span>
+        </div>
+        <div className="h-2 bg-surface-lighter rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              dailyOnTrack ? "bg-breakgreen" : "bg-red-400"
+            }`}
+            style={{ width: `${dailyPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Weekly progress */}
+      <div>
+        <div className="flex justify-between items-baseline mb-1">
+          <span className="text-gray-400 font-mono text-xs">This week</span>
+          <span className={`font-mono text-xs font-bold ${weeklyOnTrack ? "text-breakgreen" : "text-red-400"}`}>
+            {weeklyHours}/{weeklyTarget}h focus
+          </span>
+        </div>
+        <div className="h-2 bg-surface-lighter rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              weeklyOnTrack ? "bg-breakgreen" : "bg-red-400"
+            }`}
+            style={{ width: `${weeklyPct}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const userId = useUserId();
   const [periodDays, setPeriodDays] = useState(7);
@@ -95,6 +164,13 @@ export default function Home() {
 
       {/* Big Accountability Score */}
       {userId && <DashboardScore userId={userId} />}
+
+      {/* Goal Progress Bars */}
+      {userId && (
+        <div className="flex justify-center">
+          <GoalProgressBars userId={userId} />
+        </div>
+      )}
 
       {/* Weekly Heatmap */}
       <WeeklyHeatmap sessions={recentSessions} />

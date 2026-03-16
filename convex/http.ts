@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary"]) {
+for (const path of ["/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -267,10 +267,13 @@ http.route({
       return jsonResponse({ error: "sessionId is required" }, 400);
     }
 
+    const reason = typeof body.reason === "string" ? body.reason : undefined;
+
     try {
       await ctx.runMutation(api.sessions.interrupt, {
         sessionId: body.sessionId,
         userId: auth.userId,
+        ...(reason ? { reason } : {}),
       });
     } catch (e: any) {
       return jsonResponse({ error: e.message || "Failed to interrupt session" }, 400);
@@ -495,6 +498,88 @@ http.route({
         accountabilityVerdict: accountability.verdict,
       },
     });
+  }),
+});
+
+// GET /api/goals — get user goals + progress
+http.route({
+  path: "/api/goals",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const goals = await ctx.runQuery(api.goals.getGoals, {
+      userId: auth.userId,
+    });
+
+    // Get today's completed work sessions
+    const todaySessions = await ctx.runQuery(api.sessions.todayByUser, {
+      userId: auth.userId,
+    });
+    const todayCompleted = todaySessions.filter(
+      (s: any) => s.type === "work" && s.completed
+    ).length;
+
+    // Get this week's focus hours (Mon-Sun)
+    const weekStats = await ctx.runQuery(api.sessions.stats, {
+      userId: auth.userId,
+      sinceDaysAgo: 7,
+    });
+
+    return jsonResponse({
+      goals: {
+        dailyPomodoros: goals.dailyPomodoros,
+        weeklyFocusHours: goals.weeklyFocusHours,
+      },
+      progress: {
+        todayPomodoros: todayCompleted,
+        weeklyFocusHours: weekStats.totalFocusHours,
+      },
+    });
+  }),
+});
+
+// POST /api/goals — set user goals
+http.route({
+  path: "/api/goals",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    const dailyPomodoros = typeof body.dailyPomodoros === "number" && Number.isFinite(body.dailyPomodoros)
+      ? Math.round(body.dailyPomodoros) : undefined;
+    const weeklyFocusHours = typeof body.weeklyFocusHours === "number" && Number.isFinite(body.weeklyFocusHours)
+      ? Math.round(body.weeklyFocusHours * 10) / 10 : undefined;
+
+    if (dailyPomodoros === undefined && weeklyFocusHours === undefined) {
+      return jsonResponse({ error: "Provide dailyPomodoros and/or weeklyFocusHours" }, 400);
+    }
+
+    // Get current goals to merge
+    const current = await ctx.runQuery(api.goals.getGoals, {
+      userId: auth.userId,
+    });
+
+    try {
+      await ctx.runMutation(api.goals.setGoals, {
+        userId: auth.userId,
+        dailyPomodoros: dailyPomodoros ?? current.dailyPomodoros,
+        weeklyFocusHours: weeklyFocusHours ?? current.weeklyFocusHours,
+      });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to set goals" }, 400);
+    }
+
+    return jsonResponse({ ok: true });
   }),
 });
 

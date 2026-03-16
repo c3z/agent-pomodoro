@@ -74,7 +74,7 @@ interface RemoteSession {
 interface TimerProps {
   onSessionStart?: (type: TimerMode, durationMinutes: number) => void;
   onSessionComplete?: (type: TimerMode, notes?: string, tags?: string[]) => void;
-  onSessionInterrupt?: () => void;
+  onSessionInterrupt?: (reason?: string) => void;
   remoteSession?: RemoteSession | null;
   onRemoteSessionSync?: (sessionId: string) => void;
 }
@@ -124,6 +124,12 @@ export function Timer({
   const [showCompletion, setShowCompletion] = useState(false);
   const [completionNotes, setCompletionNotes] = useState("");
   const [completionTags, setCompletionTags] = useState<string[]>([]);
+
+  // Interruption reason modal
+  const [showInterruptModal, setShowInterruptModal] = useState(false);
+
+  // Break enforcement: track if last completed session was work
+  const [lastCompletedWasWork, setLastCompletedWasWork] = useState(false);
 
   // Wall-clock anchor: when the timer should end
   const endTimeRef = useRef<number>(savedState.current?.endTime ?? 0);
@@ -289,6 +295,7 @@ export function Timer({
       setShowCompletion(true);
     } else {
       onCompleteRef.current?.(currentMode);
+      setLastCompletedWasWork(false); // Break completed, allow work again
       setMode("work");
       setSecondsLeft(config.work * 60);
       persistTimerState({
@@ -309,6 +316,7 @@ export function Timer({
     setShowCompletion(false);
     setCompletionNotes("");
     setCompletionTags([]);
+    setLastCompletedWasWork(true);
 
     const newCount = completedPomodoros + 1;
     setCompletedPomodoros(newCount);
@@ -454,16 +462,29 @@ export function Timer({
   };
 
   const stop = () => {
+    if (startedRef.current) {
+      // Show interrupt reason modal instead of immediately stopping
+      setShowInterruptModal(true);
+      return;
+    }
     setIsRunning(false);
     setIsPaused(false);
     releaseWakeLock();
     endTimeRef.current = 0;
-    if (startedRef.current) {
-      playResetSound();
-      onInterruptRef.current?.();
-      startedRef.current = false;
-      completedRef.current = false;
-    }
+    setSecondsLeft(config[mode] * 60);
+    clearTimerState();
+  };
+
+  const confirmInterrupt = (reason?: string) => {
+    setShowInterruptModal(false);
+    setIsRunning(false);
+    setIsPaused(false);
+    releaseWakeLock();
+    endTimeRef.current = 0;
+    playResetSound();
+    onInterruptRef.current?.(reason);
+    startedRef.current = false;
+    completedRef.current = false;
     setSecondsLeft(config[mode] * 60);
     clearTimerState();
   };
@@ -483,6 +504,10 @@ export function Timer({
     setMode(newMode);
     setIsPaused(false);
     setSecondsLeft(config[newMode] * 60);
+    // Clear break enforcement when switching to break mode
+    if (newMode === "break" || newMode === "longBreak") {
+      setLastCompletedWasWork(false);
+    }
     clearTimerState();
   };
 
@@ -552,12 +577,23 @@ export function Timer({
         </div>
       </div>
 
+      {/* Break Enforcement Banner */}
+      {config.enforceBreaks && lastCompletedWasWork && mode === "work" && !isRunning && !isPaused && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-3 text-center max-w-sm">
+          <p className="text-blue-400 font-mono text-sm font-bold">Take your break first</p>
+          <p className="text-blue-400/70 font-mono text-xs mt-1">
+            Switch to Break mode or complete a break timer
+          </p>
+        </div>
+      )}
+
       {/* Controls */}
       <div className="flex gap-4">
         {!isRunning ? (
           <button
             onClick={start}
-            className="px-8 py-3 bg-pomored hover:bg-pomored-dark text-white rounded-xl font-bold text-lg transition-colors"
+            disabled={config.enforceBreaks && lastCompletedWasWork && mode === "work"}
+            className="px-8 py-3 bg-pomored hover:bg-pomored-dark disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-bold text-lg transition-colors"
             data-testid="start-button"
           >
             {isPaused ? "Resume" : "Start"}
@@ -606,6 +642,39 @@ export function Timer({
           {completedPomodoros} done
         </span>
       </div>
+
+      {/* Interruption Reason Modal */}
+      {showInterruptModal && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") confirmInterrupt();
+          }}
+        >
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-mono font-bold text-red-400 text-center">
+              Why are you stopping?
+            </h3>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {["distraction", "emergency", "meeting", "wrong task", "other"].map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => confirmInterrupt(reason)}
+                  className="px-4 py-2 bg-surface-lighter hover:bg-surface-light text-gray-300 hover:text-white rounded-full text-sm font-mono transition-colors"
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => confirmInterrupt()}
+              className="w-full px-4 py-2 text-gray-600 hover:text-gray-400 font-mono text-xs transition-colors"
+            >
+              Skip <span className="text-gray-700 text-[10px]">Esc</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Completion Form */}
       {showCompletion && (

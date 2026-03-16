@@ -3,6 +3,7 @@ export interface TimerConfig {
   break: number;
   longBreak: number;
   longBreakInterval: number;
+  enforceBreaks: boolean;
 }
 
 export const DEFAULT_CONFIG: TimerConfig = {
@@ -10,6 +11,7 @@ export const DEFAULT_CONFIG: TimerConfig = {
   break: 5,
   longBreak: 15,
   longBreakInterval: 4,
+  enforceBreaks: false,
 };
 
 const SETTINGS_KEY = "apom_timer_settings";

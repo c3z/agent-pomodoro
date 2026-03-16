@@ -110,6 +110,7 @@ export const interrupt = mutation({
   args: {
     sessionId: v.id("pomodoroSessions"),
     userId: v.string(),
+    reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
@@ -120,9 +121,11 @@ export const interrupt = mutation({
     if (session.completed || session.interrupted) {
       throw new Error("Session already finished");
     }
+    const reason = args.reason?.trim().slice(0, 100) || undefined;
     await ctx.db.patch(args.sessionId, {
       interrupted: true,
       completedAt: Date.now(),
+      ...(reason ? { interruptReason: reason } : {}),
     });
   },
 });
