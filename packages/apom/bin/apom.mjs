@@ -623,6 +623,31 @@ async function cmdHabits(args) {
     } else {
       console.log(`Archived: ${nameOrId}`);
     }
+  } else if (subCmd === "update") {
+    const nameOrId = args[1];
+    if (!nameOrId) {
+      console.error("Usage: agent-pomodoro habits update \"Exercise\" --name \"New name\" --phase hard --linchpin");
+      process.exit(1);
+    }
+
+    const habitId = await resolveHabitId(nameOrId);
+    const body = { habitId };
+    const nameIdx = args.indexOf("--name");
+    if (nameIdx >= 0) body.name = args[nameIdx + 1];
+    const descIdx = args.indexOf("--description");
+    if (descIdx >= 0) body.description = args[descIdx + 1];
+    const phaseIdx = args.indexOf("--phase");
+    if (phaseIdx >= 0) body.phase = args[phaseIdx + 1];
+    if (args.includes("--linchpin")) body.isLinchpin = true;
+    if (args.includes("--no-linchpin")) body.isLinchpin = false;
+
+    await apiPost("/api/habits/update", body);
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify({ ok: true, habitId }));
+    } else {
+      console.log(`Updated: ${nameOrId}`);
+    }
   } else if (subCmd === "stats") {
     const daysArg = args.find((a) => /^\d+d?$/.test(a));
     const days = daysArg ? parseInt(daysArg) : 30;
@@ -1378,7 +1403,7 @@ function cmdHelpLlm() {
         description: "Habit tracker based on Huberman protocol. Max 6 active habits, 21-day cycles (forming→testing→established), target 85% (4-5/6 daily).",
         usage: "agent-pomodoro habits [--json]",
         endpoint: "GET /api/habits/today",
-        response_example: { date: "2026-03-16", habits: [{ _id: "abc123", name: "Exercise", phase: "hard", isLinchpin: true, cyclePhase: "forming", cycleDay: 7, completed: true }], total: 4, done: 3 },
+        response_example: { date: "2026-03-16", habits: [{ _id: "abc123", name: "Exercise", phase: "hard", isLinchpin: true, cyclePhase: "forming", cycleDay: 7, completed: true }], total: 4, done: 3, hubermanTarget: { required: 4, pct: 85, met: false } },
         subcommands: [
           {
             name: "add",
@@ -1416,6 +1441,18 @@ function cmdHelpLlm() {
             description: "Remove habit from active list (soft delete, checkins preserved)",
             usage: "agent-pomodoro habits archive \"Exercise\" [--json]",
             endpoint: "POST /api/habits/archive",
+          },
+          {
+            name: "update",
+            description: "Update habit fields (name, phase, linchpin, description)",
+            usage: "agent-pomodoro habits update \"Exercise\" --name \"New name\" --phase easy [--linchpin] [--json]",
+            endpoint: "POST /api/habits/update",
+          },
+          {
+            name: "correlation",
+            description: "Habit × Pomodoro impact — avg pomodoros on habit-done vs missed days",
+            usage: "agent-pomodoro habits correlation [days] [--json]",
+            endpoint: "GET /api/habits/correlation?days=30",
           },
         ],
       },

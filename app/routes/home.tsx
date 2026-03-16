@@ -157,7 +157,7 @@ function HabitWidget({ userId }: { userId: string }) {
         ))}
       </div>
       <span className={`font-mono text-xs font-bold ${hubermanTarget?.met ? "text-breakgreen" : "text-gray-500"}`}>
-        {done}/{total} habits ({pct}%)
+        {done}/{total} habits — {hubermanTarget?.met ? "ON TARGET" : `${pct}%`}
       </span>
     </NavLink>
   );

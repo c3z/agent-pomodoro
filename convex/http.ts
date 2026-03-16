@@ -826,11 +826,14 @@ http.route({
     if (auth instanceof Response) return auth;
 
     const url = new URL(request.url);
-    const date = url.searchParams.get("date") ?? undefined;
+    const dateParam = url.searchParams.get("date") ?? undefined;
+    if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return jsonResponse({ error: "date must be YYYY-MM-DD" }, 400);
+    }
 
     const status = await ctx.runQuery(api.habits.dailyStatus, {
       userId: auth.userId,
-      date,
+      date: dateParam,
     });
     return jsonResponse(status);
   }),

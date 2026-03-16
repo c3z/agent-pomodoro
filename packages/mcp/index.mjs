@@ -306,6 +306,22 @@ const TOOLS = [
     handler: async (args) =>
       apiCall(`/api/habits/stats?days=${args.days || 30}`),
   },
+  {
+    name: "habit_correlation",
+    description:
+      "Get habit × pomodoro cross-correlation. Shows avg pomodoros on days when each habit was done vs missed, with delta%. Use to tell the user 'Exercise days have +40% more pomodoros.'",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: {
+          type: "number",
+          description: "Number of days to look back (default 30, max 365)",
+        },
+      },
+    },
+    handler: async (args) =>
+      apiCall(`/api/habits/correlation?days=${args.days || 30}`),
+  },
 ];
 
 // ── MCP JSON-RPC 2.0 Server (stdio) ────────────────────────────────

@@ -15,6 +15,7 @@ function HabitCheckbox({
 }) {
   const checkinMut = useMutation(api.habits.checkin);
   const uncheckinMut = useMutation(api.habits.uncheckin);
+  const archiveMut = useMutation(api.habits.archive);
   const [loading, setLoading] = useState(false);
 
   const toggle = async () => {
@@ -30,52 +31,67 @@ function HabitCheckbox({
     }
   };
 
-  const phaseLabel = habit.phase === "hard" ? "H" : "E";
+  const handleArchive = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Archive "${habit.name}"?`)) return;
+    await archiveMut({ habitId: habit._id, userId });
+  };
+
+  const phaseLabel = habit.phase === "hard" ? "Hard" : "Easy";
   const phaseColor = habit.phase === "hard" ? "text-pomored" : "text-breakgreen";
+  const cycleLabel = habit.cyclePhase.charAt(0).toUpperCase() + habit.cyclePhase.slice(1);
 
   return (
-    <button
-      onClick={toggle}
-      disabled={loading}
-      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
-        habit.completed
-          ? "bg-surface-light/50 opacity-75"
-          : "bg-surface-light hover:bg-surface-lighter"
-      } ${loading ? "opacity-50" : ""}`}
-    >
-      <div
-        className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${
-          habit.completed
-            ? "bg-breakgreen border-breakgreen"
-            : "border-gray-600"
-        }`}
-      >
-        {habit.completed && (
-          <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        )}
-      </div>
-
-      <div className="flex-1 text-left">
-        <div className="flex items-center gap-2">
-          <span className={`font-mono text-sm ${habit.completed ? "line-through text-gray-500" : "text-white"}`}>
-            {habit.name}
-          </span>
-          {habit.isLinchpin && <span className="text-yellow-500 text-xs">★</span>}
-          <span className={`text-[10px] font-mono ${phaseColor}`}>[{phaseLabel}]</span>
+    <div className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+      habit.completed
+        ? "bg-surface-light/50 opacity-75"
+        : "bg-surface-light hover:bg-surface-lighter"
+    } ${loading ? "opacity-50" : ""}`}>
+      <button onClick={toggle} disabled={loading} className="flex items-center gap-3 flex-1 text-left">
+        <div
+          className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+            habit.completed
+              ? "bg-breakgreen border-breakgreen"
+              : "border-gray-600"
+          }`}
+        >
+          {habit.completed && (
+            <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          )}
         </div>
-        {habit.description && (
-          <p className="text-gray-600 text-xs font-mono mt-0.5">{habit.description}</p>
-        )}
-      </div>
 
-      <div className="text-right shrink-0">
-        <span className="text-gray-600 text-[10px] font-mono">
-          {habit.cyclePhase} d{habit.cycleDay}/21
-        </span>
-      </div>
-    </button>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className={`font-mono text-sm ${habit.completed ? "line-through text-gray-500" : "text-white"}`}>
+              {habit.name}
+            </span>
+            {habit.isLinchpin && <span className="text-yellow-500 text-xs">★</span>}
+            <span className={`text-[10px] font-mono ${phaseColor}`}>{phaseLabel}</span>
+          </div>
+          {habit.description && (
+            <p className="text-gray-500 text-xs font-mono mt-0.5">{habit.description}</p>
+          )}
+        </div>
+
+        <div className="text-right shrink-0">
+          <span className="text-gray-500 text-[10px] font-mono">
+            {cycleLabel} d{habit.cycleDay}/21
+          </span>
+        </div>
+      </button>
+
+      <button
+        onClick={handleArchive}
+        className="text-gray-700 hover:text-red-400 transition-colors p-1 shrink-0"
+        title="Archive habit"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -111,11 +127,13 @@ function AddHabitForm({ userId, onClose }: { userId: string; onClose: () => void
   const [phase, setPhase] = useState<"hard" | "easy">("easy");
   const [linchpin, setLinchpin] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
+    setError("");
     try {
       await createMut({
         userId,
@@ -126,7 +144,7 @@ function AddHabitForm({ userId, onClose }: { userId: string; onClose: () => void
       });
       onClose();
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message || "Failed to create habit");
     } finally {
       setSaving(false);
     }
@@ -180,6 +198,9 @@ function AddHabitForm({ userId, onClose }: { userId: string; onClose: () => void
           <span className="font-mono text-xs text-gray-400">Linchpin ★</span>
         </label>
       </div>
+      {error && (
+        <p className="text-red-400 font-mono text-xs">{error}</p>
+      )}
       <div className="flex gap-2">
         <button
           type="submit"

@@ -261,6 +261,12 @@ export const checkinCalendar = query({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
+
+    const habit = await ctx.db.get(args.habitId);
+    if (!habit || habit.userId !== args.userId) {
+      throw new Error("Habit not found");
+    }
+
     const numDays = args.days ?? 30;
     const since = new Date();
     since.setDate(since.getDate() - numDays);
@@ -492,7 +498,7 @@ export const uncheckin = mutation({
     await verifyUserId(ctx, args.userId);
 
     const habit = await ctx.db.get(args.habitId);
-    if (!habit || habit.userId !== args.userId) {
+    if (!habit || habit.userId !== args.userId || habit.archivedAt) {
       throw new Error("Habit not found");
     }
 
@@ -522,7 +528,8 @@ async function advanceHabitCycles(ctx: any, habits: any[]) {
   const advanced: string[] = [];
 
   for (const h of habits) {
-    if (computeCycleDay(h.cycleStartedAt, now) > 21) {
+    const elapsed = Math.floor((now - h.cycleStartedAt) / DAY_MS) + 1;
+    if (elapsed > 21) {
       if (h.cyclePhase === "forming") {
         await ctx.db.patch(h._id, { cyclePhase: "testing", cycleStartedAt: now });
         advanced.push(`${h.name}: forming → testing`);

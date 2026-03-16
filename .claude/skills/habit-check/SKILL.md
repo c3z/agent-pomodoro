@@ -60,14 +60,14 @@ APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits --json
 **When linchpin is missed but others done:**
 "[done]/[total] zrobione, ale [linchpin name] ★ pominięty.
 To jest fundament — exercise → sleep → focus. Bez tego pomodoro idą gorzej.
-Zrobiłeś? `apom habits done \"[name]\"`"
+Zrobiłeś? `agent-pomodoro habits done \"[name]\"`"
 
 **When all habits done:**
 "Nawyki: [done]/[total] ✓ — Huberman target met. Solidna baza. 🖤"
 
 **When no habits configured:**
 "Zero nawyków w trackerze. Huberman mówi: max 6, zacznij od 2-3.
-`apom habits add \"Exercise\" --phase hard --linchpin`"
+`agent-pomodoro habits add \"Exercise\" --phase hard --linchpin`"
 
 **During forming phase (days 1-21):**
 "[name] jest w fazie formowania (dzień [cycleDay]/21). To kluczowy okres.
