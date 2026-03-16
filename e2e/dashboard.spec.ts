@@ -28,4 +28,23 @@ test.describe("Dashboard", () => {
     await expect(page.locator("text=Completion")).toBeVisible();
     await expect(page.locator("text=Since Last")).toBeVisible();
   });
+
+  test("heatmap component renders", async ({ page }) => {
+    await page.goto("/");
+    // WeeklyHeatmap shows "Last 28 days" label and legend
+    await expect(page.locator("text=Last 28 days")).toBeVisible();
+    await expect(page.locator("text=Less")).toBeVisible();
+    await expect(page.locator("text=More")).toBeVisible();
+  });
+
+  test("today's sessions section renders", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("text=Today's Sessions")).toBeVisible();
+  });
+
+  test("start pomodoro button is visible on dashboard", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByTestId("start-pomodoro-link")).toBeVisible();
+    await expect(page.locator("text=Start Pomodoro")).toBeVisible();
+  });
 });

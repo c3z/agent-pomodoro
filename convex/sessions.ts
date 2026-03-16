@@ -1,11 +1,50 @@
 import { v } from "convex/values";
 import { mutation, query, internalQuery } from "./_generated/server";
 
+// Auth: When called via Clerk JWT, identity is present and must match userId.
+// When called via HTTP API (Bearer token), identity is null — userId is trusted
+// from authenticateRequest() in http.ts. Do NOT call from untrusted contexts.
 async function verifyUserId(ctx: { auth: { getUserIdentity: () => Promise<any> } }, userId: string) {
   const identity = await ctx.auth.getUserIdentity();
   if (identity && identity.subject !== userId) {
     throw new Error("Access denied: userId does not match authenticated user");
   }
+}
+
+function computeStreak(completed: Array<{ startedAt: number }>, maxDays: number): number {
+  const daySet = new Set<string>();
+  for (const s of completed) {
+    const d = new Date(s.startedAt);
+    daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+  }
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < maxDays; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (daySet.has(key)) {
+      streak++;
+    } else if (i > 0) {
+      break;
+    }
+  }
+  return streak;
+}
+
+function computeHoursSince(sessions: Array<{ startedAt: number }>): number | null {
+  if (sessions.length === 0) return null;
+  const lastSession = Math.max(...sessions.map((s) => s.startedAt));
+  return Math.round(((Date.now() - lastSession) / (1000 * 60 * 60)) * 10) / 10;
+}
+
+async function findActiveSession(ctx: any, userId: string) {
+  const recent = await ctx.db
+    .query("pomodoroSessions")
+    .withIndex("by_user_date", (q: any) => q.eq("userId", userId))
+    .order("desc")
+    .take(10);
+  return recent.find((s: any) => !s.completed && !s.interrupted) ?? null;
 }
 
 export const start = mutation({
@@ -22,7 +61,8 @@ export const start = mutation({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
-    if (args.durationMinutes <= 0 || args.durationMinutes > 120) {
+    const durationMinutes = Math.round(args.durationMinutes);
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 120) {
       throw new Error("Duration must be between 1 and 120 minutes");
     }
     if (args.currentTask && args.currentTask.length > 200) {
@@ -33,12 +73,7 @@ export const start = mutation({
     }
 
     // Idempotency guard: check for existing active session
-    const recent = await ctx.db
-      .query("pomodoroSessions")
-      .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
-      .order("desc")
-      .take(10);
-    const active = recent.find((s) => !s.completed && !s.interrupted);
+    const active = await findActiveSession(ctx, args.userId);
 
     if (active) {
       if (active.type === args.type) {
@@ -56,7 +91,7 @@ export const start = mutation({
     return await ctx.db.insert("pomodoroSessions", {
       userId: args.userId,
       type: args.type,
-      durationMinutes: args.durationMinutes,
+      durationMinutes,
       startedAt: Date.now(),
       completed: false,
       interrupted: false,
@@ -76,12 +111,7 @@ export const setTask = mutation({
     if (args.currentTask.length > 200) {
       throw new Error("Task must be under 200 characters");
     }
-    const recent = await ctx.db
-      .query("pomodoroSessions")
-      .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
-      .order("desc")
-      .take(10);
-    const active = recent.find((s) => !s.completed && !s.interrupted);
+    const active = await findActiveSession(ctx, args.userId);
     if (!active) {
       throw new Error("No active session to set task on");
     }
@@ -118,7 +148,7 @@ export const complete = mutation({
     await ctx.db.patch(args.sessionId, {
       completed: true,
       completedAt: Date.now(),
-      notes: args.notes,
+      notes: args.notes?.trim(),
       tags: args.tags,
     });
   },
@@ -212,32 +242,12 @@ export const stats = query({
       0
     );
 
-    const daySet = new Set<string>();
-    completed.forEach((s) => {
-      const d = new Date(s.startedAt);
-      daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
-    });
-
-    let streak = 0;
-    const today = new Date();
-    for (let i = 0; i < since; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (daySet.has(key)) {
-        streak++;
-      } else if (i > 0) {
-        break;
-      }
-    }
-
+    const streak = computeStreak(completed, since);
+    const hoursSinceLastSession = computeHoursSince(workSessions);
     const lastSession =
       workSessions.length > 0
         ? Math.max(...workSessions.map((s) => s.startedAt))
         : null;
-    const hoursSinceLastSession = lastSession
-      ? (Date.now() - lastSession) / (1000 * 60 * 60)
-      : null;
 
     return {
       period: `${since}d`,
@@ -252,9 +262,7 @@ export const stats = query({
       totalFocusHours: Math.round((totalMinutes / 60) * 10) / 10,
       currentStreak: streak,
       lastSessionAt: lastSession,
-      hoursSinceLastSession: hoursSinceLastSession
-        ? Math.round(hoursSinceLastSession * 10) / 10
-        : null,
+      hoursSinceLastSession,
       avgSessionsPerDay: Math.round((workSessions.length / since) * 10) / 10,
     };
   },
@@ -295,28 +303,8 @@ export const agentSummary = query({
     );
     const todayCompleted = todaySessions.filter((s) => s.completed).length;
 
-    const daySet = new Set<string>();
-    completed.forEach((s) => {
-      const d = new Date(s.startedAt);
-      daySet.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
-    });
-    let streak = 0;
-    const today = new Date();
-    for (let i = 0; i < since; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-      if (daySet.has(key)) streak++;
-      else if (i > 0) break;
-    }
-
-    const lastSession =
-      workSessions.length > 0
-        ? Math.max(...workSessions.map((s) => s.startedAt))
-        : null;
-    const hoursSince = lastSession
-      ? Math.round(((Date.now() - lastSession) / (1000 * 60 * 60)) * 10) / 10
-      : null;
+    const streak = computeStreak(completed, since);
+    const hoursSince = computeHoursSince(workSessions);
 
     const lines = [];
     lines.push(
@@ -342,12 +330,7 @@ export const activeSession = query({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
-    const sessions = await ctx.db
-      .query("pomodoroSessions")
-      .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
-      .order("desc")
-      .take(10);
-    return sessions.find((s) => !s.completed && !s.interrupted) ?? null;
+    return await findActiveSession(ctx, args.userId);
   },
 });
 
@@ -522,21 +505,20 @@ export const focusRhythm = query({
     }
 
     // Find best/worst (only consider buckets with at least 1 session)
+    function bestBy<T>(items: T[], key: (item: T) => number): T | null {
+      return items.length > 0 ? items.reduce((a, b) => key(a) > key(b) ? a : b) : null;
+    }
+    function worstBy<T>(items: T[], key: (item: T) => number): T | null {
+      return items.length > 0 ? items.reduce((a, b) => key(a) < key(b) ? a : b) : null;
+    }
+    const rate = (b: { completionRate: number }) => b.completionRate;
     const activeHours = byHour.filter((b) => b.total > 0);
     const activeDays = byDayOfWeek.filter((b) => b.total > 0);
 
-    const bestHour = activeHours.length > 0
-      ? activeHours.reduce((a, b) => a.completionRate > b.completionRate ? a : b).hour
-      : null;
-    const worstHour = activeHours.length > 0
-      ? activeHours.reduce((a, b) => a.completionRate < b.completionRate ? a : b).hour
-      : null;
-    const bestDay = activeDays.length > 0
-      ? activeDays.reduce((a, b) => a.completionRate > b.completionRate ? a : b).day
-      : null;
-    const worstDay = activeDays.length > 0
-      ? activeDays.reduce((a, b) => a.completionRate < b.completionRate ? a : b).day
-      : null;
+    const bestHour = bestBy(activeHours, rate)?.hour ?? null;
+    const worstHour = worstBy(activeHours, rate)?.hour ?? null;
+    const bestDay = bestBy(activeDays, rate)?.day ?? null;
+    const worstDay = worstBy(activeDays, rate)?.day ?? null;
 
     return {
       period: `${since}d`,
@@ -782,12 +764,6 @@ export const trends = query({
     const curFocusHours = Math.round((curFocusMin / 60) * 10) / 10;
     const prevFocusHours = Math.round((prevFocusMin / 60) * 10) / 10;
 
-    // Accountability score approximation (completed / total)
-    const curAccountability = current7d.length > 0
-      ? Math.round((curCompleted.length / current7d.length) * 100) : 0;
-    const prevAccountability = previous7d.length > 0
-      ? Math.round((prevCompleted.length / previous7d.length) * 100) : 0;
-
     // Detect regression: completion rate dropped by >10pp OR sessions/day dropped by >30%
     const rateDelta = curRate - prevRate;
     const sessionsDelta = curAvgPerDay - prevAvgPerDay;
@@ -802,7 +778,7 @@ export const trends = query({
         totalFocusHours: curFocusHours,
         totalSessions: current7d.length,
         completedSessions: curCompleted.length,
-        accountabilityScore: curAccountability,
+        accountabilityScore: curRate,
       },
       previous7d: {
         completionRate: prevRate,
@@ -810,7 +786,7 @@ export const trends = query({
         totalFocusHours: prevFocusHours,
         totalSessions: previous7d.length,
         completedSessions: prevCompleted.length,
-        accountabilityScore: prevAccountability,
+        accountabilityScore: prevRate,
       },
       deltas: {
         completionRate: rateDelta,
@@ -823,19 +799,5 @@ export const trends = query({
   },
 });
 
-/**
- * @deprecated Use GET /api/me with API key auth instead.
- * This scans the entire DB and is a privacy concern — returns whatever userId
- * happened to use the app most recently, regardless of auth.
- * Kept for backward compatibility; will be removed in a future sprint.
- */
-export const activeUserId = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const latest = await ctx.db
-      .query("pomodoroSessions")
-      .order("desc")
-      .first();
-    return latest?.userId ?? null;
-  },
-});
+// activeUserId removed — was a privacy concern (scanned entire DB).
+// Use GET /api/me with API key auth instead.

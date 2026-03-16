@@ -49,22 +49,29 @@ function requireApiKey() {
   return apiKey;
 }
 
-async function apiCall(path) {
+async function apiFetch(path, options = {}) {
   const apiKey = requireApiKey();
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${path}`;
 
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  if (options.body) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${apiKey}` },
+    method: options.body ? "POST" : "GET",
+    headers,
+    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
   });
 
   if (!res.ok) {
-    const body = await res.text();
+    const text = await res.text();
     try {
-      const json = JSON.parse(body);
-      console.error(`Error ${res.status}: ${json.error || body}`);
+      const json = JSON.parse(text);
+      console.error(`Error ${res.status}: ${json.error || text}`);
     } catch {
-      console.error(`Error ${res.status}: ${body}`);
+      console.error(`Error ${res.status}: ${text}`);
     }
     process.exit(1);
   }
@@ -72,32 +79,12 @@ async function apiCall(path) {
   return res.json();
 }
 
-async function apiPost(path, data) {
-  const apiKey = requireApiKey();
-  const baseUrl = getBaseUrl();
-  const url = `${baseUrl}${path}`;
+function apiCall(path) {
+  return apiFetch(path);
+}
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    try {
-      const json = JSON.parse(body);
-      console.error(`Error ${res.status}: ${json.error || body}`);
-    } catch {
-      console.error(`Error ${res.status}: ${body}`);
-    }
-    process.exit(1);
-  }
-
-  return res.json();
+function apiPost(path, data) {
+  return apiFetch(path, { body: data });
 }
 
 // ── Commands ────────────────────────────────────────────────────────
@@ -415,6 +402,10 @@ async function cmdNudges(args) {
 async function cmdDailySummary(args) {
   const dateIdx = args.indexOf("--date");
   const dateParam = dateIdx >= 0 ? args[dateIdx + 1] : undefined;
+  if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    console.error("Invalid date format. Use YYYY-MM-DD.");
+    process.exit(1);
+  }
   const path = dateParam
     ? `/api/daily-summary?date=${dateParam}`
     : "/api/daily-summary";

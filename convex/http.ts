@@ -30,6 +30,20 @@ function corsPreflightResponse() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
+function parseDaysParam(request: Request, defaultDays: number, maxDays: number): number {
+  const url = new URL(request.url);
+  const days = parseInt(url.searchParams.get("days") ?? String(defaultDays), 10);
+  return isNaN(days) || days < 1 ? defaultDays : Math.min(days, maxDays);
+}
+
+async function parseJsonBody(request: Request): Promise<{ data?: any; error?: Response }> {
+  try {
+    return { data: await request.json() };
+  } catch {
+    return { error: jsonResponse({ error: "Invalid JSON body" }, 400) };
+  }
+}
+
 type AuthResult = { userId: string; keyId: string };
 
 async function authenticateRequest(
@@ -104,9 +118,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
-    const url = new URL(request.url);
-    const days = parseInt(url.searchParams.get("days") ?? "7", 10);
-    const sinceDaysAgo = isNaN(days) || days < 1 ? 7 : Math.min(days, 365);
+    const sinceDaysAgo = parseDaysParam(request, 7, 365);
     const stats = await ctx.runQuery(api.sessions.stats, {
       userId: auth.userId,
       sinceDaysAgo,
@@ -122,9 +134,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
-    const url = new URL(request.url);
-    const days = parseInt(url.searchParams.get("days") ?? "30", 10);
-    const sinceDaysAgo = isNaN(days) || days < 1 ? 30 : Math.min(days, 365);
+    const sinceDaysAgo = parseDaysParam(request, 30, 365);
     const tags = await ctx.runQuery(api.sessions.tagAnalytics, {
       userId: auth.userId,
       sinceDaysAgo,
@@ -187,12 +197,8 @@ http.route({
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
 
-    let body: any;
-    try {
-      body = await request.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
 
     const type = body.type;
     if (!["work", "break", "longBreak"].includes(type)) {
@@ -235,12 +241,8 @@ http.route({
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
 
-    let body: any;
-    try {
-      body = await request.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
 
     if (!body.sessionId) {
       return jsonResponse({ error: "sessionId is required" }, 400);
@@ -269,12 +271,8 @@ http.route({
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
 
-    let body: any;
-    try {
-      body = await request.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
 
     if (!body.sessionId) {
       return jsonResponse({ error: "sessionId is required" }, 400);
@@ -304,12 +302,8 @@ http.route({
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
 
-    let body: any;
-    try {
-      body = await request.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
 
     if (typeof body.currentTask !== "string") {
       return jsonResponse({ error: "currentTask (string) is required" }, 400);
@@ -335,12 +329,8 @@ http.route({
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
 
-    let body: any;
-    try {
-      body = await request.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
 
     if (!body.sessionId) {
       return jsonResponse({ error: "sessionId is required" }, 400);
@@ -415,16 +405,11 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
-
-    const url = new URL(request.url);
-    const days = parseInt(url.searchParams.get("days") ?? "7", 10);
-    const sinceDaysAgo = isNaN(days) || days < 1 ? 7 : Math.min(days, 90);
-
+    const sinceDaysAgo = parseDaysParam(request, 7, 90);
     const result = await ctx.runQuery(internal.activity.getAccountability, {
       userId: auth.userId,
       sinceDaysAgo,
     });
-
     return jsonResponse(result);
   }),
 });
@@ -436,16 +421,11 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
-
-    const url = new URL(request.url);
-    const days = parseInt(url.searchParams.get("days") ?? "7", 10);
-    const sinceDaysAgo = isNaN(days) || days < 1 ? 7 : Math.min(days, 90);
-
+    const sinceDaysAgo = parseDaysParam(request, 7, 90);
     const result = await ctx.runQuery(internal.activity.getShameLog, {
       userId: auth.userId,
       sinceDaysAgo,
     });
-
     return jsonResponse(result);
   }),
 });
@@ -611,12 +591,8 @@ http.route({
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
 
-    let body: any;
-    try {
-      body = await request.json();
-    } catch {
-      return jsonResponse({ error: "Invalid JSON body" }, 400);
-    }
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
 
     const dailyPomodoros = typeof body.dailyPomodoros === "number" && Number.isFinite(body.dailyPomodoros)
       ? Math.round(body.dailyPomodoros) : undefined;
@@ -653,9 +629,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
-    const url = new URL(request.url);
-    const days = parseInt(url.searchParams.get("days") ?? "30", 10);
-    const sinceDaysAgo = isNaN(days) || days < 1 ? 30 : Math.min(days, 365);
+    const sinceDaysAgo = parseDaysParam(request, 30, 365);
     const rhythm = await ctx.runQuery(api.sessions.focusRhythm, {
       userId: auth.userId,
       sinceDaysAgo,
