@@ -38,13 +38,44 @@ function computeHoursSince(sessions: Array<{ startedAt: number }>): number | nul
   return Math.round(((Date.now() - lastSession) / (1000 * 60 * 60)) * 10) / 10;
 }
 
+// Sessions are considered expired if they've passed their duration + grace period
+const SESSION_GRACE_MS = 5 * 60 * 1000; // 5 minutes
+
+function isSessionExpired(s: { startedAt: number; durationMinutes: number }): boolean {
+  return Date.now() > s.startedAt + s.durationMinutes * 60 * 1000 + SESSION_GRACE_MS;
+}
+
 async function findActiveSession(ctx: any, userId: string) {
   const recent = await ctx.db
     .query("pomodoroSessions")
     .withIndex("by_user_date", (q: any) => q.eq("userId", userId))
     .order("desc")
     .take(10);
-  return recent.find((s: any) => !s.completed && !s.interrupted) ?? null;
+  return recent.find((s: any) => !s.completed && !s.interrupted && !isSessionExpired(s)) ?? null;
+}
+
+// For mutations: also clean up any expired sessions found
+async function findActiveSessionWithCleanup(ctx: any, userId: string) {
+  const recent = await ctx.db
+    .query("pomodoroSessions")
+    .withIndex("by_user_date", (q: any) => q.eq("userId", userId))
+    .order("desc")
+    .take(10);
+
+  let active = null;
+  for (const s of recent) {
+    if (s.completed || s.interrupted) continue;
+    if (isSessionExpired(s)) {
+      await ctx.db.patch(s._id, {
+        completed: true,
+        completedAt: s.startedAt + s.durationMinutes * 60 * 1000,
+        notes: "auto-completed (expired)",
+      });
+      continue;
+    }
+    if (!active) active = s;
+  }
+  return active;
 }
 
 export const start = mutation({
@@ -72,8 +103,8 @@ export const start = mutation({
       throw new Error("Maximum 10 tags, each under 50 characters");
     }
 
-    // Idempotency guard: check for existing active session
-    const active = await findActiveSession(ctx, args.userId);
+    // Idempotency guard: check for existing active session (also cleans up expired)
+    const active = await findActiveSessionWithCleanup(ctx, args.userId);
 
     if (active) {
       if (active.type === args.type) {
