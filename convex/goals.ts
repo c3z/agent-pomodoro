@@ -28,12 +28,14 @@ export const setGoals = mutation({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
-    if (args.dailyPomodoros < 1 || args.dailyPomodoros > 50) {
+    if (!Number.isFinite(args.dailyPomodoros) || args.dailyPomodoros < 1 || args.dailyPomodoros > 50) {
       throw new Error("Daily pomodoros must be between 1 and 50");
     }
-    if (args.weeklyFocusHours < 1 || args.weeklyFocusHours > 100) {
+    if (!Number.isFinite(args.weeklyFocusHours) || args.weeklyFocusHours < 1 || args.weeklyFocusHours > 100) {
       throw new Error("Weekly focus hours must be between 1 and 100");
     }
+    const dailyPomodoros = Math.round(args.dailyPomodoros);
+    const weeklyFocusHours = Math.round(args.weeklyFocusHours * 10) / 10;
 
     const existing = await ctx.db
       .query("userGoals")
@@ -42,8 +44,8 @@ export const setGoals = mutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
-        dailyPomodoros: args.dailyPomodoros,
-        weeklyFocusHours: args.weeklyFocusHours,
+        dailyPomodoros,
+        weeklyFocusHours,
         updatedAt: Date.now(),
       });
       return existing._id;
@@ -51,8 +53,8 @@ export const setGoals = mutation({
 
     return await ctx.db.insert("userGoals", {
       userId: args.userId,
-      dailyPomodoros: args.dailyPomodoros,
-      weeklyFocusHours: args.weeklyFocusHours,
+      dailyPomodoros,
+      weeklyFocusHours,
       updatedAt: Date.now(),
     });
   },

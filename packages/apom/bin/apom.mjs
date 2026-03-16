@@ -447,11 +447,17 @@ async function cmdGoals(args) {
   if (subCmd === "set") {
     const body = {};
     const dailyIdx = args.indexOf("--daily");
-    if (dailyIdx >= 0) body.dailyPomodoros = parseInt(args[dailyIdx + 1]);
+    if (dailyIdx >= 0) {
+      const v = parseInt(args[dailyIdx + 1]);
+      if (Number.isFinite(v)) body.dailyPomodoros = v;
+    }
     const weeklyIdx = args.indexOf("--weekly");
-    if (weeklyIdx >= 0) body.weeklyFocusHours = parseInt(args[weeklyIdx + 1]);
+    if (weeklyIdx >= 0) {
+      const v = parseInt(args[weeklyIdx + 1]);
+      if (Number.isFinite(v)) body.weeklyFocusHours = v;
+    }
 
-    if (!body.dailyPomodoros && !body.weeklyFocusHours) {
+    if (body.dailyPomodoros === undefined && body.weeklyFocusHours === undefined) {
       console.error("Usage: agent-pomodoro goals set --daily 8 --weekly 25");
       process.exit(1);
     }

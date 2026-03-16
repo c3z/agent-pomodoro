@@ -555,8 +555,10 @@ http.route({
       return jsonResponse({ error: "Invalid JSON body" }, 400);
     }
 
-    const dailyPomodoros = typeof body.dailyPomodoros === "number" ? body.dailyPomodoros : undefined;
-    const weeklyFocusHours = typeof body.weeklyFocusHours === "number" ? body.weeklyFocusHours : undefined;
+    const dailyPomodoros = typeof body.dailyPomodoros === "number" && Number.isFinite(body.dailyPomodoros)
+      ? Math.round(body.dailyPomodoros) : undefined;
+    const weeklyFocusHours = typeof body.weeklyFocusHours === "number" && Number.isFinite(body.weeklyFocusHours)
+      ? Math.round(body.weeklyFocusHours * 10) / 10 : undefined;
 
     if (dailyPomodoros === undefined && weeklyFocusHours === undefined) {
       return jsonResponse({ error: "Provide dailyPomodoros and/or weeklyFocusHours" }, 400);
