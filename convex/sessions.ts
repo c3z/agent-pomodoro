@@ -18,6 +18,7 @@ export const start = mutation({
     ),
     durationMinutes: v.number(),
     currentTask: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
@@ -45,6 +46,7 @@ export const start = mutation({
     }
 
     const task = args.currentTask?.trim().slice(0, 200) || undefined;
+    const tags = args.tags?.map((t) => t.trim()).filter(Boolean).slice(0, 10);
     return await ctx.db.insert("pomodoroSessions", {
       userId: args.userId,
       type: args.type,
@@ -53,6 +55,7 @@ export const start = mutation({
       completed: false,
       interrupted: false,
       ...(task ? { currentTask: task } : {}),
+      ...(tags && tags.length > 0 ? { tags } : {}),
     });
   },
 });

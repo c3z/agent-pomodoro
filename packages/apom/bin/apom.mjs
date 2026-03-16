@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 
 const CONFIG_PATH = join(homedir(), ".agent-pomodoro.json");
@@ -192,7 +192,7 @@ async function cmdActive(args) {
 async function cmdStart(args) {
   const type = args[0] || "work";
   if (!["work", "break", "longBreak"].includes(type)) {
-    console.error("Usage: agent-pomodoro start [work|break|longBreak] [minutes] [--task \"...\"]");
+    console.error("Usage: agent-pomodoro start [work|break|longBreak] [minutes] [--task \"...\"] [--tags \"a,b\"]");
     process.exit(1);
   }
 
@@ -204,8 +204,15 @@ async function cmdStart(args) {
   const taskIdx = args.indexOf("--task");
   const currentTask = taskIdx >= 0 ? args[taskIdx + 1] : undefined;
 
+  const tagsIdx = args.indexOf("--tags");
+  const tagsArg = tagsIdx >= 0 ? args[tagsIdx + 1] : undefined;
+  const tags = tagsArg
+    ? tagsArg.split(",").map((t) => t.trim()).filter(Boolean)
+    : undefined;
+
   const body = { type, durationMinutes };
   if (currentTask) body.currentTask = currentTask;
+  if (tags) body.tags = tags;
 
   const data = await apiPost("/api/sessions/start", body);
 
@@ -216,6 +223,7 @@ async function cmdStart(args) {
     type,
     durationMinutes,
     startedAt: Date.now(),
+    ...(tags ? { tags } : {}),
   };
   saveConfig(config);
 
@@ -224,6 +232,7 @@ async function cmdStart(args) {
   } else {
     console.log(`Started ${type} session (${durationMinutes}min)`);
     if (currentTask) console.log(`Task: ${currentTask}`);
+    if (tags) console.log(`Tags: ${tags.join(", ")}`);
     console.log(`Session: ${data.sessionId}`);
   }
 }
@@ -399,45 +408,86 @@ async function cmdDailySummary(args) {
     ? `/api/daily-summary?date=${dateParam}`
     : "/api/daily-summary";
 
+  const outputIdx = args.indexOf("--output");
+  const outputPath = outputIdx >= 0 ? args[outputIdx + 1] : undefined;
+  const obsidianMode = args.includes("--obsidian");
+
   const data = await apiCall(path);
 
   if (args.includes("--json")) {
     console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  const s = data.summary;
+  const lines = [];
+
+  // YAML frontmatter
+  lines.push("---");
+  lines.push(`date: ${data.date}`);
+  lines.push(`pomodoros: ${s.completedSessions}`);
+  lines.push(`focus_hours: ${s.totalFocusHours}`);
+  lines.push("---");
+  lines.push("");
+
+  // Header
+  if (obsidianMode) {
+    lines.push("## Pomodoro");
   } else {
-    // Markdown-formatted output suitable for Obsidian
-    const s = data.summary;
-    console.log(`# Daily Summary: ${data.date}`);
-    console.log();
-    console.log(`## Stats`);
-    console.log(`- Sessions: ${s.completedSessions}/${s.totalSessions} completed (${s.completionRate}%)`);
-    if (s.interruptedSessions > 0) {
-      console.log(`- Interrupted: ${s.interruptedSessions}`);
-    }
-    console.log(`- Focus time: ${s.totalFocusHours}h (${s.totalFocusMinutes}min)`);
-    console.log(`- Accountability: ${s.accountabilityScore}% (${s.accountabilityVerdict})`);
+    lines.push(`# Daily Summary: ${data.date}`);
+  }
+  lines.push("");
 
-    // Tags
-    const tagEntries = Object.entries(s.tags);
-    if (tagEntries.length > 0) {
-      console.log();
-      console.log(`## Tags`);
-      for (const [tag, count] of tagEntries.sort((a, b) => b[1] - a[1])) {
-        console.log(`- ${tag}: ${count}`);
-      }
-    }
+  // Stats
+  lines.push("### Stats");
+  lines.push(`- Sessions: ${s.completedSessions}/${s.totalSessions} completed (${s.completionRate}%)`);
+  if (s.interruptedSessions > 0) {
+    lines.push(`- Interrupted: ${s.interruptedSessions}`);
+  }
+  lines.push(`- Focus time: ${s.totalFocusHours}h (${s.totalFocusMinutes}min)`);
+  if (s.accountabilityScore !== undefined) {
+    lines.push(`- Accountability: ${s.accountabilityScore}% (${s.accountabilityVerdict})`);
+  }
 
-    // Sessions list
-    if (data.sessions.length > 0) {
-      console.log();
-      console.log(`## Sessions`);
-      for (const sess of data.sessions) {
-        const time = new Date(sess.startedAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
-        const status = sess.completed ? "done" : sess.interrupted ? "interrupted" : "active";
-        const tags = sess.tags.length ? ` [${sess.tags.join(", ")}]` : "";
-        const task = sess.currentTask ? ` — ${sess.currentTask}` : "";
-        console.log(`- ${time} ${sess.durationMinutes}min ${sess.type} (${status})${tags}${task}`);
-      }
+  // Sessions table
+  if (data.sessions.length > 0) {
+    lines.push("");
+    lines.push("### Sessions");
+    lines.push("");
+    lines.push("| Time | Duration | Type | Status | Tags | Notes |");
+    lines.push("|------|----------|------|--------|------|-------|");
+    for (const sess of data.sessions) {
+      const time = new Date(sess.startedAt).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+      const status = sess.completed ? "done" : sess.interrupted ? "interrupted" : "active";
+      const tags = sess.tags.length ? sess.tags.join(", ") : "-";
+      const notes = sess.currentTask || sess.notes || "-";
+      lines.push(`| ${time} | ${sess.durationMinutes}min | ${sess.type} | ${status} | ${tags} | ${notes} |`);
     }
+  }
+
+  // Tag breakdown
+  const tagEntries = Object.entries(s.tags);
+  if (tagEntries.length > 0) {
+    lines.push("");
+    lines.push("### Tags");
+    for (const [tag, count] of tagEntries.sort((a, b) => b[1] - a[1])) {
+      lines.push(`- **${tag}**: ${count}`);
+    }
+  }
+
+  const output = lines.join("\n") + "\n";
+
+  if (outputPath) {
+    try {
+      mkdirSync(dirname(outputPath), { recursive: true });
+      appendFileSync(outputPath, output, "utf-8");
+      console.log(`Written to ${outputPath}`);
+    } catch (e) {
+      console.error(`Failed to write to ${outputPath}: ${e.message}`);
+      process.exit(1);
+    }
+  } else {
+    process.stdout.write(output);
   }
 }
 
@@ -608,14 +658,15 @@ function cmdHelpLlm() {
       {
         name: "start",
         description: "Start a new pomodoro session (creates it on server, tracks locally). Idempotent: returns existing session if same type is already active. Returns 409 if different type is active.",
-        usage: "agent-pomodoro start [work|break|longBreak] [minutes] [--task \"description\"] [--json]",
+        usage: "agent-pomodoro start [work|break|longBreak] [minutes] [--task \"description\"] [--tags \"a,b\"] [--json]",
         endpoint: "POST /api/sessions/start",
         parameters: {
           type: { type: "string", default: "work", enum: ["work", "break", "longBreak"] },
           durationMinutes: { type: "integer", default: 25 },
           currentTask: { type: "string", optional: true, description: "What the user is working on (max 200 chars)" },
+          tags: { type: "array", items: "string", optional: true, description: "Pre-tag session at start (e.g. code, deep-work)" },
         },
-        response_example: { sessionId: "abc123", type: "work", durationMinutes: 25, currentTask: "building feature X" },
+        response_example: { sessionId: "abc123", type: "work", durationMinutes: 25, currentTask: "building feature X", tags: ["code"] },
       },
       {
         name: "task set",
@@ -703,11 +754,13 @@ function cmdHelpLlm() {
       },
       {
         name: "daily-summary",
-        description: "Markdown-formatted daily summary with sessions, focus time, tags, accountability. Suitable for pasting into Obsidian notes.",
-        usage: "agent-pomodoro daily-summary [--date YYYY-MM-DD] [--json]",
+        description: "Markdown-formatted daily summary with YAML frontmatter, sessions table, focus time, tags, accountability. Suitable for Obsidian daily notes.",
+        usage: "agent-pomodoro daily-summary [--date YYYY-MM-DD] [--obsidian] [--output /path/note.md] [--json]",
         endpoint: "GET /api/daily-summary?date=YYYY-MM-DD",
         parameters: {
           date: { type: "string", format: "YYYY-MM-DD", default: "today", description: "Date to summarize" },
+          obsidian: { type: "boolean", default: false, description: "Format for Obsidian daily note (## Pomodoro header instead of # Daily Summary)" },
+          output: { type: "string", optional: true, description: "File path to append output to (creates dirs if needed)" },
         },
         response_example: {
           date: "2025-01-15",
@@ -756,7 +809,8 @@ function cmdHelpLlm() {
       "Start + stop workflow: agent-pomodoro start work 25, then agent-pomodoro stop --notes 'done'",
       "Active session ID is stored in ~/.agent-pomodoro.json",
       "Check nudges regularly — server generates them every 30min during work hours",
-      "Use daily-summary to create Obsidian notes: agent-pomodoro daily-summary >> notes.md",
+      "Use daily-summary for Obsidian: agent-pomodoro daily-summary --obsidian --output ~/notes/daily.md",
+      "Pre-tag sessions at start: agent-pomodoro start work --tags 'code,deep-work'",
       "accountability --days 7 now includes dailyScores with per-day score breakdown",
     ],
   };
@@ -775,6 +829,7 @@ Usage:
   agent-pomodoro active              Show currently active session
   agent-pomodoro start [type] [min]  Start a session (default: work 25)
   agent-pomodoro start work 25 --task "desc"  Start with task description
+  agent-pomodoro start work --tags "code,deep-work"  Start with tags
   agent-pomodoro task set "desc"     Set task on active session
   agent-pomodoro stop [--notes ...]  Complete active session
   agent-pomodoro interrupt [--reason "..."]  Interrupt active session
@@ -788,6 +843,8 @@ Usage:
   agent-pomodoro tags [days]         Tag breakdown (default: 30 days)
   agent-pomodoro daily-summary       Today's summary (Markdown)
   agent-pomodoro daily-summary --date 2025-01-15  Specific date
+  agent-pomodoro daily-summary --obsidian  Obsidian daily note format
+  agent-pomodoro daily-summary --output /path/note.md  Append to file
   agent-pomodoro config set-key <k>  Set API key
   agent-pomodoro config set-url <u>  Set server URL
   agent-pomodoro config show         Show config
@@ -797,8 +854,8 @@ Usage:
 Flags:
   --json                Machine-readable JSON output
   --task "text"         Task description for start command
+  --tags "a,b,c"        Tags for start/stop command (comma-separated)
   --notes "text"        Notes for stop command
-  --tags "a,b,c"        Tags for stop command (comma-separated)
   --source "name"       Heartbeat source (default: apom-cli)
   --days N              Period for accountability (default: 7)
   --shame               Include shame log in accountability
@@ -806,6 +863,9 @@ Flags:
   --daily N             Daily pomodoro target (for goals set)
   --weekly N            Weekly focus hours target (for goals set)
   --daemon              Run heartbeat in loop (every 30s)
+  --obsidian            Format daily-summary for Obsidian daily note
+  --output <path>       Write daily-summary to file (append mode)
+  --date YYYY-MM-DD     Date for daily-summary (default: today)
 
 Env vars:
   APOM_API_KEY    API key (overrides config file)
