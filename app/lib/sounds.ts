@@ -57,6 +57,35 @@ async function playBreakEndSound() {
   } catch {}
 }
 
+// Soft click + warm tone — session begins
+async function playStartSound() {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
+    const t = ctx.currentTime;
+    // Soft percussive click
+    makeNote(ctx, 1200, "sine", t, 0.06, 0.12);
+    // Warm confirmation tone
+    makeNote(ctx, 440, "sine", t + 0.05, 0.3, 0.15);       // A4
+    makeNote(ctx, 554, "sine", t + 0.08, 0.25, 0.10);      // C#5
+    makeNote(ctx, 659, "sine", t + 0.12, 0.35, 0.12);      // E5
+  } catch {}
+}
+
+// Descending soft tone — reset/stop
+async function playResetSound() {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
+    const t = ctx.currentTime;
+    makeNote(ctx, 523, "sine", t, 0.2, 0.12);              // C5
+    makeNote(ctx, 392, "sine", t + 0.1, 0.25, 0.10);       // G4
+    makeNote(ctx, 330, "sine", t + 0.2, 0.3, 0.08);        // E4
+  } catch {}
+}
+
+export { playStartSound, playResetSound };
+
 export function playCompletionSound(mode: TimerMode) {
   if (mode === "work") {
     playWorkCompleteSound();
