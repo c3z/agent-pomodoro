@@ -691,11 +691,27 @@ async function resolveHabitId(nameOrId) {
   // Convex IDs are alphanumeric, 20+ chars
   if (/^[a-z0-9]+$/i.test(nameOrId) && nameOrId.length >= 16) return nameOrId;
 
-  // Otherwise resolve by name
+  // Otherwise resolve by name (exact > substring > fuzzy)
   const data = await apiCall("/api/habits");
-  const match = data.habits.find(
-    (h) => h.name.toLowerCase() === nameOrId.toLowerCase()
-  );
+  const lower = nameOrId.toLowerCase();
+
+  // 1. Exact case-insensitive match
+  let match = data.habits.find((h) => h.name.toLowerCase() === lower);
+
+  // 2. Substring match (unique)
+  if (!match) {
+    const subs = data.habits.filter((h) => h.name.toLowerCase().includes(lower));
+    if (subs.length === 1) match = subs[0];
+  }
+
+  // 3. Word-start match (e.g. "qig" matches "Morning Qigong")
+  if (!match) {
+    const words = data.habits.filter((h) =>
+      h.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(lower))
+    );
+    if (words.length === 1) match = words[0];
+  }
+
   if (!match) {
     console.error(`Habit not found: "${nameOrId}"`);
     console.error("Active habits:");

@@ -2,6 +2,11 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 
 const MAX_ACTIVE_HABITS = 6;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function computeCycleDay(cycleStartedAt: number, now = Date.now()): number {
+  return Math.min(21, Math.floor((now - cycleStartedAt) / DAY_MS) + 1);
+}
 
 // Auth: HTTP API path uses Bearer token (authenticateRequest in http.ts) — identity is null.
 // Frontend path uses Clerk JWT — identity is present, must match userId.
@@ -16,11 +21,12 @@ async function verifyUserId(
 }
 
 async function getActiveHabits(ctx: any, userId: string) {
-  const all = await ctx.db
+  return ctx.db
     .query("habits")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .withIndex("by_user_active", (q: any) =>
+      q.eq("userId", userId).eq("archivedAt", undefined)
+    )
     .collect();
-  return all.filter((h: any) => h.archivedAt === undefined);
 }
 
 // ── Queries ──────────────────────────────────────────────────────────
@@ -60,10 +66,7 @@ export const dailyStatus = query({
 
     const items = sorted.map((h: any) => {
       const checkin = checkinMap.get(h._id);
-      const cycleDay = Math.min(
-        21,
-        Math.floor((Date.now() - h.cycleStartedAt) / (24 * 60 * 60 * 1000)) + 1
-      );
+      const cycleDay = computeCycleDay(h.cycleStartedAt);
       return {
         _id: h._id,
         name: h.name,
@@ -109,22 +112,24 @@ export const habitStats = query({
       )
       .collect();
 
+    const checkinsByHabit = new Map<string, typeof relevantCheckins>();
+    for (const c of relevantCheckins) {
+      const list = checkinsByHabit.get(c.habitId) ?? [];
+      list.push(c);
+      checkinsByHabit.set(c.habitId, list);
+    }
+
     const stats = habits.map((h: any) => {
-      const checkins = relevantCheckins.filter(
-        (c: any) => c.habitId === h._id
-      );
+      const checkins = checkinsByHabit.get(h._id) ?? [];
       const completedDays = checkins.filter((c: any) => c.completed).length;
-      const daysSinceCreated = Math.floor((Date.now() - h.createdAt) / (24 * 60 * 60 * 1000)) + 1;
+      const daysSinceCreated = Math.floor((Date.now() - h.createdAt) / DAY_MS) + 1;
       const totalDays = Math.min(days, daysSinceCreated);
       const completionRate = totalDays > 0
         ? Math.round((completedDays / totalDays) * 100)
         : 0;
 
       // 21-day cycle progress
-      const cycleDay = Math.min(
-        21,
-        Math.floor((Date.now() - h.cycleStartedAt) / (24 * 60 * 60 * 1000)) + 1
-      );
+      const cycleDay = computeCycleDay(h.cycleStartedAt);
 
       return {
         _id: h._id,
@@ -150,10 +155,7 @@ export const cycleStatus = query({
     const habits = await getActiveHabits(ctx, args.userId);
 
     return habits.map((h: any) => {
-      const cycleDay = Math.min(
-        21,
-        Math.floor((Date.now() - h.cycleStartedAt) / (24 * 60 * 60 * 1000)) + 1
-      );
+      const cycleDay = computeCycleDay(h.cycleStartedAt);
       const daysRemaining = Math.max(0, 21 - cycleDay);
       return {
         _id: h._id,
@@ -375,36 +377,33 @@ export const uncheckin = mutation({
   },
 });
 
-// Auto-transition cycles: forming (21d) → testing (21d) → established
+// Shared cycle transition logic
+async function advanceHabitCycles(ctx: any, habits: any[]) {
+  const now = Date.now();
+  const advanced: string[] = [];
+
+  for (const h of habits) {
+    if (computeCycleDay(h.cycleStartedAt, now) > 21) {
+      if (h.cyclePhase === "forming") {
+        await ctx.db.patch(h._id, { cyclePhase: "testing", cycleStartedAt: now });
+        advanced.push(`${h.name}: forming → testing`);
+      } else if (h.cyclePhase === "testing") {
+        await ctx.db.patch(h._id, { cyclePhase: "established", cycleStartedAt: now });
+        advanced.push(`${h.name}: testing → established`);
+      }
+    }
+  }
+
+  return { advanced };
+}
+
+// Per-user cycle advance (callable from frontend/API)
 export const cycleAdvance = mutation({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
     const habits = await getActiveHabits(ctx, args.userId);
-    const now = Date.now();
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const advanced: string[] = [];
-
-    for (const h of habits) {
-      const daysSinceStart = Math.floor((now - h.cycleStartedAt) / DAY_MS);
-      if (daysSinceStart >= 21) {
-        if (h.cyclePhase === "forming") {
-          await ctx.db.patch(h._id, {
-            cyclePhase: "testing",
-            cycleStartedAt: now,
-          });
-          advanced.push(`${h.name}: forming → testing`);
-        } else if (h.cyclePhase === "testing") {
-          await ctx.db.patch(h._id, {
-            cyclePhase: "established",
-            cycleStartedAt: now,
-          });
-          advanced.push(`${h.name}: testing → established`);
-        }
-      }
-    }
-
-    return { advanced };
+    return advanceHabitCycles(ctx, habits);
   },
 });
 
@@ -412,25 +411,10 @@ export const cycleAdvance = mutation({
 export const cycleAdvanceAll = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const allHabits = await ctx.db.query("habits").collect();
-    const active = allHabits.filter((h) => h.archivedAt === undefined);
-    const now = Date.now();
-    const DAY_MS = 24 * 60 * 60 * 1000;
-    const advanced: string[] = [];
-
-    for (const h of active) {
-      const daysSinceStart = Math.floor((now - h.cycleStartedAt) / DAY_MS);
-      if (daysSinceStart >= 21) {
-        if (h.cyclePhase === "forming") {
-          await ctx.db.patch(h._id, { cyclePhase: "testing", cycleStartedAt: now });
-          advanced.push(`${h.name}: forming → testing`);
-        } else if (h.cyclePhase === "testing") {
-          await ctx.db.patch(h._id, { cyclePhase: "established", cycleStartedAt: now });
-          advanced.push(`${h.name}: testing → established`);
-        }
-      }
-    }
-
-    return { advanced };
+    const active = await ctx.db
+      .query("habits")
+      .filter((q) => q.eq(q.field("archivedAt"), undefined))
+      .collect();
+    return advanceHabitCycles(ctx, active);
   },
 });

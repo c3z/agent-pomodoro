@@ -59,6 +59,9 @@ Generate an API key at: https://agent-pomodoro.vercel.app/settings
 | `pomodoro_accountability` | Accountability score (% of work time protected) |
 | `pomodoro_goals` | Daily/weekly goals and progress |
 | `pomodoro_nudges` | Pending nudges (idle warnings, reminders) |
+| `habit_today` | Today's habits + completion status + Huberman target |
+| `habit_checkin` | Mark a habit as done/undone for today |
+| `habit_stats` | Habit completion rates + 21-day cycle status |
 
 ## Protocol
 
