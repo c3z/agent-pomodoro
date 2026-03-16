@@ -546,35 +546,110 @@ export default function Settings() {
       )}
 
       {/* API docs section */}
-      <div className="bg-surface-light rounded-xl p-6 space-y-4">
+      <div className="bg-surface-light rounded-xl p-6 space-y-6">
         <h2 className="text-lg font-mono font-bold text-gray-400">
           API Reference
         </h2>
-        <div className="space-y-3 font-mono text-xs">
-          <div className="bg-surface rounded-lg p-3">
-            <p className="text-breakgreen">GET /api/status</p>
-            <p className="text-gray-500 mt-1">Agent summary — today, week, streak</p>
-          </div>
-          <div className="bg-surface rounded-lg p-3">
-            <p className="text-breakgreen">GET /api/stats?days=7</p>
-            <p className="text-gray-500 mt-1">
-              Detailed statistics for the last N days
-            </p>
-          </div>
-          <div className="bg-surface rounded-lg p-3">
-            <p className="text-breakgreen">GET /api/sessions/today</p>
-            <p className="text-gray-500 mt-1">Today's pomodoro sessions</p>
-          </div>
-          <div className="bg-surface rounded-lg p-3">
-            <p className="text-breakgreen">GET /api/sessions?limit=50</p>
-            <p className="text-gray-500 mt-1">Recent sessions (max 200)</p>
-          </div>
-        </div>
         <p className="text-gray-600 font-mono text-xs">
           All endpoints require{" "}
           <code className="text-gray-500">Authorization: Bearer apom_xxx</code>{" "}
           header.
         </p>
+
+        {/* Sessions */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-mono font-bold text-gray-500 uppercase tracking-wider">
+            Sessions
+          </h3>
+          <div className="space-y-2 font-mono text-xs">
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/status</p>
+              <p className="text-gray-500 mt-1">Agent summary — today, week, streak</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/stats?days=7</p>
+              <p className="text-gray-500 mt-1">Detailed statistics for the last N days</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/stats/tags?days=30</p>
+              <p className="text-gray-500 mt-1">Tag breakdown with counts and focus time</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/sessions/today</p>
+              <p className="text-gray-500 mt-1">Today's pomodoro sessions</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/sessions?limit=50</p>
+              <p className="text-gray-500 mt-1">Recent sessions (max 200)</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/sessions/active</p>
+              <p className="text-gray-500 mt-1">Currently running session with elapsed time</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/daily-summary?date=YYYY-MM-DD</p>
+              <p className="text-gray-500 mt-1">Daily summary with sessions, tags, accountability</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/sessions/start</p>
+              <p className="text-gray-500 mt-1">Start a session — type, durationMinutes, currentTask, tags</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/sessions/complete</p>
+              <p className="text-gray-500 mt-1">Complete active session — sessionId, notes, tags</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/sessions/interrupt</p>
+              <p className="text-gray-500 mt-1">Interrupt active session — sessionId, reason</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/sessions/task</p>
+              <p className="text-gray-500 mt-1">Set task description on active session</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Activity */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-mono font-bold text-gray-500 uppercase tracking-wider">
+            Activity
+          </h3>
+          <div className="space-y-2 font-mono text-xs">
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/activity/heartbeat</p>
+              <p className="text-gray-500 mt-1">Record work presence — source identifier</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/activity/accountability?days=7</p>
+              <p className="text-gray-500 mt-1">Accountability score — protected vs unprotected windows</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/activity/shame?days=7</p>
+              <p className="text-gray-500 mt-1">Shame log — unprotected work windows</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/nudges</p>
+              <p className="text-gray-500 mt-1">Fetch pending nudges (marks as delivered)</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Goals */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-mono font-bold text-gray-500 uppercase tracking-wider">
+            Goals
+          </h3>
+          <div className="space-y-2 font-mono text-xs">
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/goals</p>
+              <p className="text-gray-500 mt-1">Current goals and progress (daily pomodoros, weekly hours)</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/goals</p>
+              <p className="text-gray-500 mt-1">Set daily/weekly targets — dailyPomodoros, weeklyFocusHours</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -194,6 +194,7 @@ http.route({
     }
 
     const currentTask = typeof body.currentTask === "string" ? body.currentTask : undefined;
+    const tags = Array.isArray(body.tags) ? body.tags.filter((t: any) => typeof t === "string") : undefined;
 
     let sessionId;
     try {
@@ -202,6 +203,7 @@ http.route({
         type,
         durationMinutes,
         ...(currentTask ? { currentTask } : {}),
+        ...(tags && tags.length > 0 ? { tags } : {}),
       });
     } catch (e: any) {
       if (e.message?.startsWith("CONFLICT:")) {
@@ -210,7 +212,7 @@ http.route({
       return jsonResponse({ error: e.message || "Failed to start session" }, 400);
     }
 
-    return jsonResponse({ sessionId, type, durationMinutes, ...(currentTask ? { currentTask } : {}) }, 201);
+    return jsonResponse({ sessionId, type, durationMinutes, ...(currentTask ? { currentTask } : {}), ...(tags && tags.length > 0 ? { tags } : {}) }, 201);
   }),
 });
 
