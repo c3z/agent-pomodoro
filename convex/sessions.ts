@@ -1,6 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query, internalQuery } from "./_generated/server";
 
+// Auth: When called via Clerk JWT, identity is present and must match userId.
+// When called via HTTP API (Bearer token), identity is null — userId is trusted
+// from authenticateRequest() in http.ts. Do NOT call from untrusted contexts.
 async function verifyUserId(ctx: { auth: { getUserIdentity: () => Promise<any> } }, userId: string) {
   const identity = await ctx.auth.getUserIdentity();
   if (identity && identity.subject !== userId) {
@@ -58,7 +61,8 @@ export const start = mutation({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
-    if (args.durationMinutes <= 0 || args.durationMinutes > 120) {
+    const durationMinutes = Math.round(args.durationMinutes);
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 120) {
       throw new Error("Duration must be between 1 and 120 minutes");
     }
     if (args.currentTask && args.currentTask.length > 200) {
@@ -87,7 +91,7 @@ export const start = mutation({
     return await ctx.db.insert("pomodoroSessions", {
       userId: args.userId,
       type: args.type,
-      durationMinutes: args.durationMinutes,
+      durationMinutes,
       startedAt: Date.now(),
       completed: false,
       interrupted: false,
@@ -144,7 +148,7 @@ export const complete = mutation({
     await ctx.db.patch(args.sessionId, {
       completed: true,
       completedAt: Date.now(),
-      notes: args.notes,
+      notes: args.notes?.trim(),
       tags: args.tags,
     });
   },
@@ -795,19 +799,5 @@ export const trends = query({
   },
 });
 
-/**
- * @deprecated Use GET /api/me with API key auth instead.
- * This scans the entire DB and is a privacy concern — returns whatever userId
- * happened to use the app most recently, regardless of auth.
- * Kept for backward compatibility; will be removed in a future sprint.
- */
-export const activeUserId = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const latest = await ctx.db
-      .query("pomodoroSessions")
-      .order("desc")
-      .first();
-    return latest?.userId ?? null;
-  },
-});
+// activeUserId removed — was a privacy concern (scanned entire DB).
+// Use GET /api/me with API key auth instead.

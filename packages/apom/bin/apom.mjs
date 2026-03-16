@@ -402,6 +402,10 @@ async function cmdNudges(args) {
 async function cmdDailySummary(args) {
   const dateIdx = args.indexOf("--date");
   const dateParam = dateIdx >= 0 ? args[dateIdx + 1] : undefined;
+  if (dateParam && !/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    console.error("Invalid date format. Use YYYY-MM-DD.");
+    process.exit(1);
+  }
   const path = dateParam
     ? `/api/daily-summary?date=${dateParam}`
     : "/api/daily-summary";
