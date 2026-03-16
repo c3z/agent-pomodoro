@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { playCompletionSound, playStartSound, playResetSound } from "~/lib/sounds";
+import { AccountabilityBadge } from "~/components/AccountabilityBadge";
 
 type TimerMode = "work" | "break" | "longBreak";
 
@@ -450,6 +451,9 @@ export function Timer({
       <div className="text-gray-600 text-xs font-mono">
         Space = start/pause · Esc = reset
       </div>
+
+      {/* Accountability Badge */}
+      <AccountabilityBadge />
 
       {/* Pomodoro Counter */}
       <div className="flex gap-2 items-center">

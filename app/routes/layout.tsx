@@ -32,6 +32,10 @@ function Nav() {
             <span className="hidden sm:inline">History</span>
             <span className="sm:hidden">Log</span>
           </NavLink>
+          <NavLink to="/accountability" className={linkClass}>
+            <span className="hidden sm:inline">Accountability</span>
+            <span className="sm:hidden">Score</span>
+          </NavLink>
           <NavLink to="/settings" className={linkClass}>
             <span className="hidden sm:inline">Settings</span>
             <span className="sm:hidden">API</span>

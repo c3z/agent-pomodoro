@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Stats } from "~/components/Stats";
 import { SessionList } from "~/components/SessionList";
+import { AccountabilityBadge } from "~/components/AccountabilityBadge";
 import { NavLink } from "react-router";
 import { useUserId } from "~/lib/useUserId";
 
@@ -66,6 +67,11 @@ export default function Home() {
       ) : (
         <Stats data={statsData} />
       )}
+
+      {/* Accountability Badge */}
+      <div className="flex justify-center">
+        <AccountabilityBadge />
+      </div>
 
       <div className="text-center">
         <NavLink
