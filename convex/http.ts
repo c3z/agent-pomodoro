@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt"]) {
+for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -234,6 +234,79 @@ http.route({
     }
 
     return jsonResponse({ ok: true });
+  }),
+});
+
+// POST /api/activity/heartbeat — record work activity
+http.route({
+  path: "/api/activity/heartbeat",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch {
+      // source is optional — allow empty body
+    }
+
+    const source =
+      typeof body.source === "string" && body.source.length > 0
+        ? body.source.slice(0, 64)
+        : "unknown";
+    const timestamp = Date.now();
+
+    const result = await ctx.runMutation(internal.activity.recordHeartbeat, {
+      userId: auth.userId,
+      source,
+      timestamp,
+    });
+
+    return jsonResponse({ ok: true, ...result });
+  }),
+});
+
+// GET /api/activity/accountability?days=7
+http.route({
+  path: "/api/activity/accountability",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const url = new URL(request.url);
+    const days = parseInt(url.searchParams.get("days") ?? "7", 10);
+    const sinceDaysAgo = isNaN(days) || days < 1 ? 7 : Math.min(days, 90);
+
+    const result = await ctx.runQuery(internal.activity.getAccountability, {
+      userId: auth.userId,
+      sinceDaysAgo,
+    });
+
+    return jsonResponse(result);
+  }),
+});
+
+// GET /api/activity/shame?days=7
+http.route({
+  path: "/api/activity/shame",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const url = new URL(request.url);
+    const days = parseInt(url.searchParams.get("days") ?? "7", 10);
+    const sinceDaysAgo = isNaN(days) || days < 1 ? 7 : Math.min(days, 90);
+
+    const result = await ctx.runQuery(internal.activity.getShameLog, {
+      userId: auth.userId,
+      sinceDaysAgo,
+    });
+
+    return jsonResponse(result);
   }),
 });
 
