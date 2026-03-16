@@ -104,9 +104,13 @@ export default function TimerPage() {
             persistSessionId(null);
           }
         }}
-        onSessionInterrupt={async () => {
+        onSessionInterrupt={async (reason?: string) => {
           if (sessionIdRef.current) {
-            const args = { sessionId: sessionIdRef.current, userId: userId! };
+            const args = {
+              sessionId: sessionIdRef.current,
+              userId: userId!,
+              ...(reason ? { reason } : {}),
+            };
             try {
               await interruptSession(args);
             } catch (e) {

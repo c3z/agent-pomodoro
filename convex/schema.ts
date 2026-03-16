@@ -17,6 +17,7 @@ export default defineSchema({
     notes: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
     currentTask: v.optional(v.string()),
+    interruptReason: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_date", ["userId", "startedAt"])
@@ -51,4 +52,11 @@ export default defineSchema({
     delivered: v.boolean(),
   })
     .index("by_user_pending", ["userId", "delivered", "createdAt"]),
+
+  userGoals: defineTable({
+    userId: v.string(),
+    dailyPomodoros: v.number(),
+    weeklyFocusHours: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 });

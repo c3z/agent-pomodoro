@@ -50,6 +50,33 @@ export default function Settings() {
   const createKey = useMutation(api.apiKeys.create);
   const revokeKey = useMutation(api.apiKeys.revoke);
 
+  // Goals
+  const goalsData = useQuery(api.goals.getGoals, userId ? { userId } : "skip");
+  const setGoalsMut = useMutation(api.goals.setGoals);
+  const [dailyGoal, setDailyGoal] = useState(6);
+  const [weeklyGoal, setWeeklyGoal] = useState(20);
+  const [goalsSaved, setGoalsSaved] = useState(false);
+  const [goalsLoaded, setGoalsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (goalsData && !goalsLoaded) {
+      setDailyGoal(goalsData.dailyPomodoros);
+      setWeeklyGoal(goalsData.weeklyFocusHours);
+      setGoalsLoaded(true);
+    }
+  }, [goalsData, goalsLoaded]);
+
+  const handleSaveGoals = async () => {
+    if (!userId) return;
+    await setGoalsMut({
+      userId,
+      dailyPomodoros: dailyGoal,
+      weeklyFocusHours: weeklyGoal,
+    });
+    setGoalsSaved(true);
+    setTimeout(() => setGoalsSaved(false), 2000);
+  };
+
   const [newKeyName, setNewKeyName] = useState("");
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -161,6 +188,54 @@ export default function Settings() {
         </p>
       </div>
 
+      {/* Daily Goals */}
+      <div className="bg-surface-light rounded-xl p-6 space-y-4">
+        <h2 className="text-lg font-mono font-bold text-gray-400">
+          Daily Goals
+        </h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-gray-400 text-xs font-mono block mb-1">
+              Daily pomodoros target
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={dailyGoal}
+              onChange={(e) => setDailyGoal(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs font-mono block mb-1">
+              Weekly focus hours target
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={weeklyGoal}
+              onChange={(e) => setWeeklyGoal(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveGoals}
+            className="px-6 py-2 bg-pomored hover:bg-pomored-dark text-white rounded-lg font-mono text-sm font-bold transition-colors"
+          >
+            Save
+          </button>
+          {goalsSaved && (
+            <span className="text-breakgreen font-mono text-xs">
+              Saved!
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Timer Settings */}
       <div className="bg-surface-light rounded-xl p-6 space-y-4">
         <h2 className="text-lg font-mono font-bold text-gray-400">
@@ -243,6 +318,39 @@ export default function Settings() {
           Changes apply on next timer start. Reload the timer page to pick up
           new durations.
         </p>
+
+        {/* Break Enforcement Toggle */}
+        <div className="border-t border-surface-lighter pt-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={timerConfig.enforceBreaks}
+              onClick={() => {
+                const updated = { ...timerConfig, enforceBreaks: !timerConfig.enforceBreaks };
+                setTimerConfig(updated);
+                saveTimerSettings(updated);
+              }}
+              className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+                timerConfig.enforceBreaks ? "bg-blue-500" : "bg-surface-lighter"
+              }`}
+            >
+              <span
+                className={`inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform mt-0.5 ${
+                  timerConfig.enforceBreaks ? "translate-x-[22px]" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+            <div>
+              <span className="font-mono text-sm text-gray-300">
+                Enforce breaks
+              </span>
+              <p className="text-gray-600 font-mono text-xs">
+                Blocks starting focus until you take a break after each work session
+              </p>
+            </div>
+          </label>
+        </div>
       </div>
 
       {/* Work Schedule */}
