@@ -2,6 +2,12 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUserId } from "~/lib/useUserId";
+import {
+  loadTimerSettings,
+  saveTimerSettings,
+  DEFAULT_CONFIG,
+  type TimerConfig,
+} from "~/lib/timerSettings";
 
 async function generateApiKey(): Promise<string> {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -48,6 +54,33 @@ export default function Settings() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Timer settings state
+  const [timerConfig, setTimerConfig] = useState<TimerConfig>(DEFAULT_CONFIG);
+  const [timerSaved, setTimerSaved] = useState(false);
+
+  useEffect(() => {
+    setTimerConfig(loadTimerSettings());
+  }, []);
+
+  const handleTimerSave = () => {
+    saveTimerSettings(timerConfig);
+    setTimerSaved(true);
+    setTimeout(() => setTimerSaved(false), 2000);
+  };
+
+  const handleTimerReset = () => {
+    setTimerConfig({ ...DEFAULT_CONFIG });
+    saveTimerSettings(DEFAULT_CONFIG);
+    setTimerSaved(true);
+    setTimeout(() => setTimerSaved(false), 2000);
+  };
+
+  const updateTimerField = (field: keyof TimerConfig, value: string) => {
+    const num = parseInt(value, 10);
+    if (isNaN(num)) return;
+    setTimerConfig((prev) => ({ ...prev, [field]: num }));
+  };
+
   useEffect(() => {
     if (!revealedKey) return;
     const timer = setTimeout(() => setRevealedKey(null), 60_000);
@@ -92,7 +125,91 @@ export default function Settings() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold font-mono text-white">Settings</h1>
         <p className="text-gray-500 font-mono text-sm">
-          API keys for agent access
+          Timer durations & API keys
+        </p>
+      </div>
+
+      {/* Timer Settings */}
+      <div className="bg-surface-light rounded-xl p-6 space-y-4">
+        <h2 className="text-lg font-mono font-bold text-gray-400">
+          Timer Durations
+        </h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-gray-400 text-xs font-mono block mb-1">
+              Focus (min)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={120}
+              value={timerConfig.work}
+              onChange={(e) => updateTimerField("work", e.target.value)}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs font-mono block mb-1">
+              Break (min)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={timerConfig.break}
+              onChange={(e) => updateTimerField("break", e.target.value)}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs font-mono block mb-1">
+              Long break (min)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={timerConfig.longBreak}
+              onChange={(e) => updateTimerField("longBreak", e.target.value)}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs font-mono block mb-1">
+              Long break every
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={timerConfig.longBreakInterval}
+              onChange={(e) => updateTimerField("longBreakInterval", e.target.value)}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleTimerSave}
+            className="px-6 py-2 bg-pomored hover:bg-pomored-dark text-white rounded-lg font-mono text-sm font-bold transition-colors"
+          >
+            Save
+          </button>
+          <button
+            onClick={handleTimerReset}
+            className="px-6 py-2 bg-surface hover:bg-surface-lighter text-gray-400 rounded-lg font-mono text-sm transition-colors"
+          >
+            Reset to defaults
+          </button>
+          {timerSaved && (
+            <span className="text-breakgreen font-mono text-xs">
+              Saved!
+            </span>
+          )}
+        </div>
+        <p className="text-gray-600 font-mono text-xs">
+          Changes apply on next timer start. Reload the timer page to pick up
+          new durations.
         </p>
       </div>
 

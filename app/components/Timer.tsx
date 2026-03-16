@@ -1,22 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { playCompletionSound, playStartSound, playResetSound } from "~/lib/sounds";
 import { AccountabilityBadge } from "~/components/AccountabilityBadge";
+import { loadTimerSettings, type TimerConfig } from "~/lib/timerSettings";
 
 type TimerMode = "work" | "break" | "longBreak";
-
-interface TimerConfig {
-  work: number;
-  break: number;
-  longBreak: number;
-  longBreakInterval: number;
-}
-
-const DEFAULT_CONFIG: TimerConfig = {
-  work: 25,
-  break: 5,
-  longBreak: 15,
-  longBreakInterval: 4,
-};
 
 const TIMER_STATE_KEY = "apom_timer_state";
 
@@ -98,6 +85,10 @@ export function Timer({
   remoteSession,
   onRemoteSessionSync,
 }: TimerProps) {
+  // Load user-configured timer durations (localStorage with defaults)
+  const configRef = useRef<TimerConfig>(loadTimerSettings());
+  const config = configRef.current;
+
   // Hydrate from localStorage if available
   const savedState = useRef(loadTimerState());
 
@@ -106,7 +97,7 @@ export function Timer({
   );
   const [secondsLeft, setSecondsLeft] = useState(() => {
     const s = savedState.current;
-    if (!s) return DEFAULT_CONFIG.work * 60;
+    if (!s) return config.work * 60;
     if (s.isRunning && s.endTime > 0) {
       // Timer was running — calculate remaining from wall clock
       const remaining = Math.max(0, Math.ceil((s.endTime - Date.now()) / 1000));
@@ -223,7 +214,7 @@ export function Timer({
   const onStartRef = useRef(onSessionStart);
   onStartRef.current = onSessionStart;
 
-  const totalSeconds = DEFAULT_CONFIG[mode] * 60;
+  const totalSeconds = config[mode] * 60;
   const progress = ((totalSeconds - secondsLeft) / totalSeconds) * 100;
 
   const formatTime = (seconds: number) => {
@@ -298,7 +289,7 @@ export function Timer({
     } else {
       onCompleteRef.current?.(currentMode);
       setMode("work");
-      setSecondsLeft(DEFAULT_CONFIG.work * 60);
+      setSecondsLeft(config.work * 60);
       persistTimerState({
         mode: "work",
         endTime: 0,
@@ -307,7 +298,7 @@ export function Timer({
         completedPomodoros,
         startedRef: false,
         completedRef: false,
-        secondsLeft: DEFAULT_CONFIG.work * 60,
+        secondsLeft: config.work * 60,
       });
     }
   }, [secondsLeft, isRunning]);
@@ -321,11 +312,11 @@ export function Timer({
     const newCount = completedPomodoros + 1;
     setCompletedPomodoros(newCount);
     const nextMode =
-      newCount % DEFAULT_CONFIG.longBreakInterval === 0
+      newCount % config.longBreakInterval === 0
         ? "longBreak"
         : "break";
     setMode(nextMode);
-    const nextSeconds = DEFAULT_CONFIG[nextMode] * 60;
+    const nextSeconds = config[nextMode] * 60;
     setSecondsLeft(nextSeconds);
     persistTimerState({
       mode: nextMode,
@@ -419,7 +410,7 @@ export function Timer({
     if (!startedRef.current) {
       startedRef.current = true;
       completedRef.current = true; // arm completion detection
-      onStartRef.current?.(mode, DEFAULT_CONFIG[mode]);
+      onStartRef.current?.(mode, config[mode]);
     }
     const newEndTime = Date.now() + secondsLeft * 1000;
     endTimeRef.current = newEndTime;
@@ -472,7 +463,7 @@ export function Timer({
       startedRef.current = false;
       completedRef.current = false;
     }
-    setSecondsLeft(DEFAULT_CONFIG[mode] * 60);
+    setSecondsLeft(config[mode] * 60);
     clearTimerState();
   };
 
@@ -490,7 +481,7 @@ export function Timer({
     }
     setMode(newMode);
     setIsPaused(false);
-    setSecondsLeft(DEFAULT_CONFIG[newMode] * 60);
+    setSecondsLeft(config[newMode] * 60);
     clearTimerState();
   };
 
@@ -593,12 +584,12 @@ export function Timer({
 
       {/* Pomodoro Counter */}
       <div className="flex gap-2 items-center">
-        {Array.from({ length: DEFAULT_CONFIG.longBreakInterval }).map(
+        {Array.from({ length: config.longBreakInterval }).map(
           (_, i) => (
             <div
               key={i}
               className={`w-3 h-3 rounded-full ${
-                i < completedPomodoros % DEFAULT_CONFIG.longBreakInterval
+                i < completedPomodoros % config.longBreakInterval
                   ? "bg-pomored"
                   : "bg-surface-lighter"
               }`}
