@@ -171,6 +171,21 @@ async function cmdSessions(args) {
   }
 }
 
+async function cmdActive(args) {
+  const data = await apiCall("/api/sessions/active");
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+  } else if (data.session) {
+    const s = data.session;
+    const elapsed = Math.round((Date.now() - s.startedAt) / 60000);
+    const remaining = Math.max(0, s.durationMinutes - elapsed);
+    console.log(`Active: ${s.type} session (${s.durationMinutes}min)`);
+    console.log(`Elapsed: ${elapsed}min, Remaining: ${remaining}min`);
+  } else {
+    console.log("No active session.");
+  }
+}
+
 async function cmdStart(args) {
   const type = args[0] || "work";
   if (!["work", "break", "longBreak"].includes(type)) {
@@ -309,19 +324,18 @@ async function cmdAccountability(args) {
   console.log(`Protected windows: ${data.protectedWindows ?? 0}`);
   console.log(`Unprotected windows: ${data.unprotectedWindows ?? 0}`);
 
-  if (data.totalHeartbeats !== undefined) {
-    console.log(`Total heartbeats: ${data.totalHeartbeats}`);
+  if (data.totalWindows !== undefined) {
+    console.log(`Total windows: ${data.totalWindows}`);
   }
 
   if (showShame) {
     const shame = await apiCall(`/api/activity/shame?days=${days}`);
-    if (shame.windows && shame.windows.length > 0) {
-      console.log(`\nShame log (${shame.windows.length} unprotected windows):`);
-      for (const w of shame.windows) {
-        const start = new Date(w.start).toLocaleString("pl-PL");
-        const end = new Date(w.end).toLocaleString("pl-PL");
-        const duration = w.durationMinutes ? `${w.durationMinutes}min` : "";
-        console.log(`  ${start} — ${end} ${duration}`);
+    if (shame.shameWindows && shame.shameWindows.length > 0) {
+      console.log(`\nShame log (${shame.shameWindows.length} unprotected windows):`);
+      for (const w of shame.shameWindows) {
+        const start = new Date(w.startedAt).toLocaleString("pl-PL");
+        const end = new Date(w.endedAt).toLocaleString("pl-PL");
+        console.log(`  ${start} — ${end} (${w.durationMinutes}min)`);
       }
     } else {
       console.log("\nNo shame windows. Good job.");
@@ -422,8 +436,17 @@ function cmdHelpLlm() {
         parameters: { limit: { type: "integer", default: 20, max: 200 } },
       },
       {
+        name: "active",
+        description: "Show currently active (running) session with elapsed/remaining time",
+        usage: "agent-pomodoro active [--json]",
+        endpoint: "GET /api/sessions/active",
+        response_example: {
+          session: { _id: "abc123", type: "work", durationMinutes: 25, startedAt: 1710500000000, completed: false, interrupted: false },
+        },
+      },
+      {
         name: "start",
-        description: "Start a new pomodoro session (creates it on server, tracks locally)",
+        description: "Start a new pomodoro session (creates it on server, tracks locally). Idempotent: returns existing session if same type is already active. Returns 409 if different type is active.",
         usage: "agent-pomodoro start [work|break|longBreak] [minutes] [--json]",
         endpoint: "POST /api/sessions/start",
         parameters: {
@@ -465,10 +488,10 @@ function cmdHelpLlm() {
         },
         response_example: {
           score: 73,
-          verdict: "decent",
-          protectedWindows: 11,
-          unprotectedWindows: 4,
-          totalHeartbeats: 156,
+          verdict: "inconsistent",
+          protectedWindows: 61,
+          unprotectedWindows: 23,
+          totalWindows: 84,
           period: "7d",
         },
       },
@@ -502,6 +525,7 @@ Usage:
   agent-pomodoro stats [days]        Detailed stats (default: 7 days)
   agent-pomodoro sessions today      Today's sessions
   agent-pomodoro sessions [limit]    Recent sessions (default: 20)
+  agent-pomodoro active              Show currently active session
   agent-pomodoro start [type] [min]  Start a session (default: work 25)
   agent-pomodoro stop [--notes ...]  Complete active session
   agent-pomodoro interrupt           Interrupt active session
@@ -546,6 +570,8 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdStats(args.slice(1));
 } else if (cmd === "sessions") {
   await cmdSessions(args.slice(1));
+} else if (cmd === "active") {
+  await cmdActive(args.slice(1));
 } else if (cmd === "start") {
   await cmdStart(args.slice(1));
 } else if (cmd === "stop" || cmd === "complete") {

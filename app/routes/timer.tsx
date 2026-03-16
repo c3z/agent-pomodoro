@@ -16,7 +16,21 @@ export default function TimerPage() {
     api.sessions.activeSession,
     hasClerk && userId ? { userId } : "skip"
   );
-  const sessionIdRef = useRef<Id<"pomodoroSessions"> | null>(null);
+  const savedSessionId = (() => {
+    try {
+      const saved = localStorage.getItem("apom_session_id");
+      return saved ? (saved as Id<"pomodoroSessions">) : null;
+    } catch { return null; }
+  })();
+  const sessionIdRef = useRef<Id<"pomodoroSessions"> | null>(savedSessionId);
+
+  const persistSessionId = (id: Id<"pomodoroSessions"> | null) => {
+    sessionIdRef.current = id;
+    try {
+      if (id) localStorage.setItem("apom_session_id", id);
+      else localStorage.removeItem("apom_session_id");
+    } catch {}
+  };
 
   // Flush retry queue when online
   useEffect(() => {
@@ -60,14 +74,14 @@ export default function TimerPage() {
       <Timer
         remoteSession={activeSession ?? null}
         onRemoteSessionSync={(sessionId) => {
-          sessionIdRef.current = sessionId as Id<"pomodoroSessions">;
+          persistSessionId(sessionId as Id<"pomodoroSessions">);
         }}
         onSessionStart={async (type, duration) => {
           if (!userId) return;
           const args = { userId, type, durationMinutes: duration };
           try {
             const id = await startSession(args);
-            sessionIdRef.current = id;
+            persistSessionId(id);
           } catch (e) {
             console.warn("[pomodoro] Failed to save session start:", e);
             enqueue({ action: "start", args });
@@ -87,7 +101,7 @@ export default function TimerPage() {
               console.warn("[pomodoro] Failed to save session complete:", e);
               enqueue({ action: "complete", args });
             }
-            sessionIdRef.current = null;
+            persistSessionId(null);
           }
         }}
         onSessionInterrupt={async () => {
@@ -99,7 +113,7 @@ export default function TimerPage() {
               console.warn("[pomodoro] Failed to save interruption:", e);
               enqueue({ action: "interrupt", args });
             }
-            sessionIdRef.current = null;
+            persistSessionId(null);
           }
         }}
       />

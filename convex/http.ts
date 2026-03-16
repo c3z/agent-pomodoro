@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame"]) {
+for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -136,6 +136,20 @@ http.route({
   }),
 });
 
+// GET /api/sessions/active — currently active (running) session
+http.route({
+  path: "/api/sessions/active",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const session = await ctx.runQuery(api.sessions.activeSession, {
+      userId: auth.userId,
+    });
+    return jsonResponse({ session });
+  }),
+});
+
 // POST /api/sessions/start — start a new session
 http.route({
   path: "/api/sessions/start",
@@ -161,11 +175,19 @@ http.route({
       return jsonResponse({ error: "durationMinutes must be 1-120" }, 400);
     }
 
-    const sessionId = await ctx.runMutation(api.sessions.start, {
-      userId: auth.userId,
-      type,
-      durationMinutes,
-    });
+    let sessionId;
+    try {
+      sessionId = await ctx.runMutation(api.sessions.start, {
+        userId: auth.userId,
+        type,
+        durationMinutes,
+      });
+    } catch (e: any) {
+      if (e.message?.startsWith("CONFLICT:")) {
+        return jsonResponse({ error: e.message }, 409);
+      }
+      return jsonResponse({ error: e.message || "Failed to start session" }, 400);
+    }
 
     return jsonResponse({ sessionId, type, durationMinutes }, 201);
   }),
