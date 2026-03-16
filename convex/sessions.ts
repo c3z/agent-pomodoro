@@ -367,6 +367,50 @@ export const accountabilityToday = query({
   },
 });
 
+export const tagAnalytics = query({
+  args: {
+    userId: v.string(),
+    sinceDaysAgo: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const since = Math.min(args.sinceDaysAgo ?? 30, 365);
+    const sinceTs = Date.now() - since * 24 * 60 * 60 * 1000;
+
+    const sessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", args.userId).gte("startedAt", sinceTs)
+      )
+      .collect();
+
+    // Only count completed work sessions
+    const completed = sessions.filter(
+      (s) => s.type === "work" && s.completed
+    );
+
+    const tagMap = new Map<string, { count: number; totalMinutes: number }>();
+    for (const s of completed) {
+      if (s.tags && s.tags.length > 0) {
+        for (const tag of s.tags) {
+          const existing = tagMap.get(tag) ?? { count: 0, totalMinutes: 0 };
+          existing.count += 1;
+          existing.totalMinutes += s.durationMinutes;
+          tagMap.set(tag, existing);
+        }
+      }
+    }
+
+    return Array.from(tagMap.entries())
+      .map(([tag, data]) => ({
+        tag,
+        count: data.count,
+        totalMinutes: data.totalMinutes,
+      }))
+      .sort((a, b) => b.count - a.count);
+  },
+});
+
 export const activeUserId = internalQuery({
   args: {},
   handler: async (ctx) => {

@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Stats } from "~/components/Stats";
 import { SessionList } from "~/components/SessionList";
+import { WeeklyHeatmap } from "~/components/WeeklyHeatmap";
 import { AccountabilityBadge } from "~/components/AccountabilityBadge";
 import { NavLink } from "react-router";
 import { useUserId } from "~/lib/useUserId";
@@ -76,6 +77,10 @@ export default function Home() {
     api.sessions.todayByUser,
     userId ? { userId } : "skip"
   );
+  const recentSessions = useQuery(
+    api.sessions.listByUser,
+    userId ? { userId, limit: 200 } : "skip"
+  );
 
   return (
     <div className="space-y-8">
@@ -90,6 +95,9 @@ export default function Home() {
 
       {/* Big Accountability Score */}
       {userId && <DashboardScore userId={userId} />}
+
+      {/* Weekly Heatmap */}
+      <WeeklyHeatmap sessions={recentSessions} />
 
       <div className="flex justify-center gap-1">
         {PERIOD_OPTIONS.map((opt) => (

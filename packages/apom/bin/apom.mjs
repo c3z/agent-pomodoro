@@ -437,6 +437,26 @@ async function cmdDailySummary(args) {
   }
 }
 
+async function cmdTags(args) {
+  const daysArg = args.find((a) => /^\d+d?$/.test(a));
+  const days = daysArg ? parseInt(daysArg) : 30;
+  const data = await apiCall(`/api/stats/tags?days=${days}`);
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+  } else {
+    if (data.tags.length === 0) {
+      console.log(`No tags found in the last ${days} days.`);
+    } else {
+      console.log(`Tag breakdown (${data.period}):\n`);
+      for (const t of data.tags) {
+        const hours = Math.round((t.totalMinutes / 60) * 10) / 10;
+        console.log(`  ${t.tag.padEnd(20)} ${String(t.count).padStart(3)} sessions  ${String(hours).padStart(5)}h`);
+      }
+    }
+  }
+}
+
 function cmdConfig(args) {
   const subCmd = args[0];
 
@@ -636,6 +656,20 @@ function cmdHelpLlm() {
         },
       },
       {
+        name: "tags",
+        description: "Tag breakdown: count and total focus time per tag for completed work sessions",
+        usage: "agent-pomodoro tags [days] [--json]",
+        endpoint: "GET /api/stats/tags?days=N",
+        parameters: { days: { type: "integer", default: 30, max: 365 } },
+        response_example: {
+          tags: [
+            { tag: "code", count: 12, totalMinutes: 300 },
+            { tag: "writing", count: 5, totalMinutes: 125 },
+          ],
+          period: "30d",
+        },
+      },
+      {
         name: "config",
         description: "Manage CLI configuration",
         subcommands: [
@@ -679,6 +713,7 @@ Usage:
   agent-pomodoro accountability      Accountability score (default: 7d)
   agent-pomodoro accountability --shame  Include shame log
   agent-pomodoro nudges              Fetch pending server nudges
+  agent-pomodoro tags [days]         Tag breakdown (default: 30 days)
   agent-pomodoro daily-summary       Today's summary (Markdown)
   agent-pomodoro daily-summary --date 2025-01-15  Specific date
   agent-pomodoro config set-key <k>  Set API key
@@ -737,6 +772,8 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdNudges(args.slice(1));
 } else if (cmd === "daily-summary") {
   await cmdDailySummary(args.slice(1));
+} else if (cmd === "tags") {
+  await cmdTags(args.slice(1));
 } else if (cmd === "config") {
   cmdConfig(args.slice(1));
 } else {
