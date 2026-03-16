@@ -1,7 +1,7 @@
 {
   "name": "agent-pomodoro",
-  "version": "0.5.0",
-  "description": "CLI for AI agents to query and control Agent Pomodoro focus sessions",
+  "version": "0.6.0",
+  "description": "CLI for AI agents to query and control Agent Pomodoro focus sessions + Huberman habit tracking",
   "type": "module",
   "bin": {
     "agent-pomodoro": "./bin/apom.mjs"
@@ -14,7 +14,9 @@
     "ai-agent",
     "focus",
     "productivity",
-    "cli"
+    "cli",
+    "habits",
+    "huberman"
   ],
   "license": "MIT",
   "repository": {
