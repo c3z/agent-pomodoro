@@ -213,6 +213,42 @@ export function Timer({
     });
   }, [remoteSession]);
 
+  // Detect remote session completion/interruption/expiry
+  const prevRemoteRef = useRef<typeof remoteSession>(undefined);
+  const localCompletionRef = useRef(false);
+
+  useEffect(() => {
+    if (remoteSession === undefined) return;
+    const prev = prevRemoteRef.current;
+    prevRemoteRef.current = remoteSession;
+    if (prev === undefined) return;
+
+    // Session vanished from backend (completed/interrupted elsewhere, or expired)
+    if (prev && !remoteSession) {
+      if (localCompletionRef.current) {
+        localCompletionRef.current = false;
+        return;
+      }
+      // Remote action — reset local timer silently
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setIsRunning(false);
+      setIsPaused(false);
+      setShowCompletion(false);
+      setShowInterruptModal(false);
+      releaseWakeLock();
+      endTimeRef.current = 0;
+      startedRef.current = false;
+      completedRef.current = false;
+      syncedSessionRef.current = null;
+      setMode("work");
+      setSecondsLeft(config.work * 60);
+      clearTimerState();
+    }
+  }, [remoteSession]);
+
   // Stable refs for callbacks to avoid useEffect dependency issues
   const onCompleteRef = useRef(onSessionComplete);
   onCompleteRef.current = onSessionComplete;
@@ -294,6 +330,7 @@ export function Timer({
       // Show completion form for work sessions
       setShowCompletion(true);
     } else {
+      localCompletionRef.current = true;
       onCompleteRef.current?.(currentMode);
       setLastCompletedWasWork(false); // Break completed, allow work again
       setMode("work");
@@ -312,6 +349,7 @@ export function Timer({
   }, [secondsLeft, isRunning]);
 
   const advanceAfterCompletion = (notes?: string, tags?: string[]) => {
+    localCompletionRef.current = true;
     onCompleteRef.current?.("work", notes, tags);
     setShowCompletion(false);
     setCompletionNotes("");
@@ -462,6 +500,11 @@ export function Timer({
   };
 
   const stop = () => {
+    // If interrupt modal is already showing, dismiss it (Escape key path)
+    if (showInterruptModal) {
+      confirmInterrupt();
+      return;
+    }
     if (startedRef.current) {
       // Show interrupt reason modal instead of immediately stopping
       setShowInterruptModal(true);
@@ -476,6 +519,7 @@ export function Timer({
   };
 
   const confirmInterrupt = (reason?: string) => {
+    localCompletionRef.current = true;
     setShowInterruptModal(false);
     setIsRunning(false);
     setIsPaused(false);

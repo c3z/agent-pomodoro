@@ -72,7 +72,7 @@ export default function TimerPage() {
   return (
     <div className="flex flex-col items-center pt-8">
       <Timer
-        remoteSession={activeSession ?? null}
+        remoteSession={activeSession}
         onRemoteSessionSync={(sessionId) => {
           persistSessionId(sessionId as Id<"pomodoroSessions">);
         }}
@@ -89,6 +89,11 @@ export default function TimerPage() {
         }}
         onSessionComplete={async (_type, notes, tags) => {
           if (sessionIdRef.current) {
+            // If Convex confirms no active session, skip (completed elsewhere)
+            if (activeSession === null) {
+              persistSessionId(null);
+              return;
+            }
             const args = {
               sessionId: sessionIdRef.current,
               userId: userId!,
@@ -106,6 +111,10 @@ export default function TimerPage() {
         }}
         onSessionInterrupt={async (reason?: string) => {
           if (sessionIdRef.current) {
+            if (activeSession === null) {
+              persistSessionId(null);
+              return;
+            }
             const args = {
               sessionId: sessionIdRef.current,
               userId: userId!,
