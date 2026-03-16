@@ -8,6 +8,20 @@ function computeCycleDay(cycleStartedAt: number, now = Date.now()): number {
   return Math.min(21, Math.floor((now - cycleStartedAt) / DAY_MS) + 1);
 }
 
+function dateRange(sinceDate: string): string[] {
+  const dates: string[] = [];
+  for (const d = new Date(sinceDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+function validateDate(date: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error("Date must be YYYY-MM-DD format");
+  }
+}
+
 // Auth: HTTP API path uses Bearer token (authenticateRequest in http.ts) — identity is null.
 // Frontend path uses Clerk JWT — identity is present, must match userId.
 async function verifyUserId(
@@ -119,6 +133,8 @@ export const habitStats = query({
       checkinsByHabit.set(c.habitId, list);
     }
 
+    const allDates = dateRange(sinceDate);
+
     const stats = habits.map((h: any) => {
       const checkins = checkinsByHabit.get(h._id) ?? [];
       const completedDays = checkins.filter((c: any) => c.completed).length;
@@ -128,19 +144,12 @@ export const habitStats = query({
         ? Math.round((completedDays / totalDays) * 100)
         : 0;
 
-      // 21-day cycle progress
       const cycleDay = computeCycleDay(h.cycleStartedAt);
 
       // 2-day bins (Huberman): pair consecutive days, count bins where at least 1 done
-      const dates = checkins
-        .filter((c: any) => c.completed)
-        .map((c: any) => c.date)
-        .sort();
-      const allDates: string[] = [];
-      for (let d = new Date(sinceDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
-        allDates.push(d.toISOString().slice(0, 10));
-      }
-      const completedSet = new Set(dates);
+      const completedSet = new Set(
+        checkins.filter((c: any) => c.completed).map((c: any) => c.date)
+      );
       let totalBins = 0;
       let completedBins = 0;
       for (let i = 0; i < allDates.length; i += 2) {
@@ -212,9 +221,17 @@ export const habitPomodoroCorrelation = query({
       sessionsByDate.set(date, list);
     }
 
+    // Pre-group checkins by habit
+    const checkinsByHabit = new Map<string, any[]>();
+    for (const c of checkins) {
+      const list = checkinsByHabit.get(c.habitId) ?? [];
+      list.push(c);
+      checkinsByHabit.set(c.habitId, list);
+    }
+
     // Per-habit: compare pomodoro count on done vs missed days
     const correlations = habits.map((h: any) => {
-      const habitCheckins = checkins.filter((c: any) => c.habitId === h._id);
+      const habitCheckins = checkinsByHabit.get(h._id) ?? [];
       const doneDates = new Set(
         habitCheckins.filter((c: any) => c.completed).map((c: any) => c.date)
       );
@@ -283,13 +300,10 @@ export const checkinCalendar = query({
       checkins.filter((c: any) => c.completed).map((c: any) => c.date)
     );
 
-    const calendar: { date: string; completed: boolean }[] = [];
-    for (let d = new Date(sinceDate); d <= new Date(); d.setDate(d.getDate() + 1)) {
-      const ds = d.toISOString().slice(0, 10);
-      calendar.push({ date: ds, completed: completedDates.has(ds) });
-    }
-
-    return calendar;
+    return dateRange(sinceDate).map((ds) => ({
+      date: ds,
+      completed: completedDates.has(ds),
+    }));
   },
 });
 
@@ -451,9 +465,7 @@ export const checkin = mutation({
     }
 
     const date = args.date ?? new Date().toISOString().slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      throw new Error("Date must be YYYY-MM-DD format");
-    }
+    validateDate(date);
 
     if (args.notes && args.notes.length > 500) {
       throw new Error("Notes must be 500 characters or less");
@@ -503,9 +515,7 @@ export const uncheckin = mutation({
     }
 
     const date = args.date ?? new Date().toISOString().slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      throw new Error("Date must be YYYY-MM-DD format");
-    }
+    validateDate(date);
 
     const existing = await ctx.db
       .query("habitCheckins")

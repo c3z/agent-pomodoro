@@ -645,35 +645,24 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const auth = await authenticateRequest(ctx, request);
     if (auth instanceof Response) return auth;
-    const retro = await ctx.runQuery(api.sessions.weeklyRetro, {
-      userId: auth.userId,
-    });
+    const [retro, habitStats, correlation] = await Promise.all([
+      ctx.runQuery(api.sessions.weeklyRetro, { userId: auth.userId }),
+      ctx.runQuery(api.habits.habitStats, { userId: auth.userId, sinceDaysAgo: 7 }).catch(() => null),
+      ctx.runQuery(api.habits.habitPomodoroCorrelation, { userId: auth.userId, sinceDaysAgo: 7 }).catch(() => null),
+    ]);
 
-    // Enrich retro with habit stats (7-day window)
     let habitRetro = null;
-    try {
-      const habitStats = await ctx.runQuery(api.habits.habitStats, {
-        userId: auth.userId,
-        sinceDaysAgo: 7,
-      });
-      const correlation = await ctx.runQuery(api.habits.habitPomodoroCorrelation, {
-        userId: auth.userId,
-        sinceDaysAgo: 7,
-      });
-      if (habitStats.stats.length > 0) {
-        habitRetro = {
-          habits: habitStats.stats.map((s: any) => ({
-            name: s.name,
-            completionRate: s.completionRate,
-            binCompletionRate: s.binCompletionRate,
-            isLinchpin: s.isLinchpin,
-            cyclePhase: s.cyclePhase,
-          })),
-          correlations: correlation.correlations.filter((c: any) => c.doneDays > 0 && c.missedDays > 0),
-        };
-      }
-    } catch {
-      // No habits configured — that's fine
+    if (habitStats && habitStats.stats.length > 0) {
+      habitRetro = {
+        habits: habitStats.stats.map((s: any) => ({
+          name: s.name,
+          completionRate: s.completionRate,
+          binCompletionRate: s.binCompletionRate,
+          isLinchpin: s.isLinchpin,
+          cyclePhase: s.cyclePhase,
+        })),
+        correlations: correlation?.correlations.filter((c: any) => c.doneDays > 0 && c.missedDays > 0) ?? [],
+      };
     }
 
     return jsonResponse({ ...retro, habits: habitRetro });
