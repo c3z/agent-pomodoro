@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary"]) {
+for (const path of ["/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -101,6 +101,24 @@ http.route({
       sinceDaysAgo,
     });
     return jsonResponse(stats);
+  }),
+});
+
+// GET /api/stats/tags?days=30 — tag analytics
+http.route({
+  path: "/api/stats/tags",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const url = new URL(request.url);
+    const days = parseInt(url.searchParams.get("days") ?? "30", 10);
+    const sinceDaysAgo = isNaN(days) || days < 1 ? 30 : Math.min(days, 365);
+    const tags = await ctx.runQuery(api.sessions.tagAnalytics, {
+      userId: auth.userId,
+      sinceDaysAgo,
+    });
+    return jsonResponse({ tags, period: `${sinceDaysAgo}d` });
   }),
 });
 
