@@ -240,6 +240,88 @@ const TOOLS = [
     inputSchema: { type: "object", properties: {}, required: [] },
     handler: async () => apiCall("/api/nudges"),
   },
+  {
+    name: "habit_today",
+    description:
+      "Get today's habits with completion status. Returns each habit with done/not-done, cycle phase (forming/testing/established), cycle day (1-21), and Huberman target (85% = 4-5 out of 6). Use this at conversation start to check habit compliance.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        date: {
+          type: "string",
+          description: "Date in YYYY-MM-DD format (default: today)",
+        },
+      },
+    },
+    handler: async (args) =>
+      apiCall(`/api/habits/today${args.date ? `?date=${args.date}` : ""}`),
+  },
+  {
+    name: "habit_checkin",
+    description:
+      "Mark a habit as done (or undone) for today. Use habitId from habit_today response. Huberman protocol: target is 4-5 out of 6 daily (85%).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        habitId: {
+          type: "string",
+          description: "Habit ID (from habit_today response _id field)",
+        },
+        completed: {
+          type: "boolean",
+          description: "true to mark done, false to unmark (default: true)",
+        },
+        date: {
+          type: "string",
+          description: "Date in YYYY-MM-DD (default: today)",
+        },
+        notes: {
+          type: "string",
+          description: "Optional notes about the checkin",
+        },
+      },
+      required: ["habitId"],
+    },
+    handler: async (args) =>
+      apiPost("/api/habits/checkin", {
+        habitId: args.habitId,
+        completed: args.completed ?? true,
+        date: args.date,
+        notes: args.notes,
+      }),
+  },
+  {
+    name: "habit_stats",
+    description:
+      "Get habit completion rates and 21-day cycle status. Shows per-habit completion percentage (denominator adjusts for habit age), cycle phase, and cycle day.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: {
+          type: "number",
+          description: "Number of days to look back (default 30, max 365)",
+        },
+      },
+    },
+    handler: async (args) =>
+      apiCall(`/api/habits/stats?days=${args.days || 30}`),
+  },
+  {
+    name: "habit_correlation",
+    description:
+      "Get habit × pomodoro cross-correlation. Shows avg pomodoros on days when each habit was done vs missed, with delta%. Use to tell the user 'Exercise days have +40% more pomodoros.'",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: {
+          type: "number",
+          description: "Number of days to look back (default 30, max 365)",
+        },
+      },
+    },
+    handler: async (args) =>
+      apiCall(`/api/habits/correlation?days=${args.days || 30}`),
+  },
 ];
 
 // ── MCP JSON-RPC 2.0 Server (stdio) ────────────────────────────────

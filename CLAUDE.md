@@ -68,16 +68,20 @@ app/
     └── retryQueue.ts    # localStorage-based offline mutation retry
 
 convex/
-├── schema.ts        # pomodoroSessions + apiKeys + workActivity tables
+├── schema.ts        # 7 tables: pomodoroSessions, apiKeys, workActivity, nudges, userGoals, habits, habitCheckins
 ├── sessions.ts      # CRUD mutations + queries + stats + agentSummary + accountabilityToday
+├── habits.ts        # Habit CRUD, checkin/uncheckin, dailyStatus, habitStats, cycleStatus, cycleAdvance
 ├── activity.ts      # Work activity heartbeats, accountability score, shame log
+├── goals.ts         # Daily/weekly goal targets
 ├── apiKeys.ts       # API key CRUD + hash validation
-├── http.ts          # REST API: GET/POST sessions + activity endpoints
+├── nudges.ts        # Server-side nudge generation + delivery
+├── crons.ts         # Scheduled jobs: nudges (30min), habit cycle advance (daily)
+├── http.ts          # REST API: 41 endpoints (sessions, activity, goals, habits)
 ├── auth.config.ts   # Clerk JWT config
 └── tsconfig.json    # Convex-specific TS config
 
 packages/apom/       # CLI tool (npm install -g agent-pomodoro)
-├── bin/apom.mjs     # Zero-dependency CLI: status/stats/sessions/start/stop/heartbeat/accountability
+├── bin/apom.mjs     # Zero-dependency CLI: 30 commands (sessions, habits, goals, accountability)
 ├── hooks/heartbeat.sh # Claude Code session hook (fire-and-forget curl)
 └── package.json     # npm package config
 
@@ -106,7 +110,7 @@ e2e/
 - **Routes:** lowercase, React Router v7 file convention
 - **CSS:** Tailwind 4 with custom theme vars (pomored, breakgreen, surface)
 - **Font:** JetBrains Mono (monospace), Inter (sans)
-- **Tests:** Playwright E2E in `e2e/`, must pass before PR (34 tests)
+- **Tests:** Playwright E2E in `e2e/`, must pass before PR (63 tests)
 
 ## Quality Tracking
 

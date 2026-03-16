@@ -1,117 +1,50 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #17 (in progress)
-## Consolidated Score: 8.6/10 (Sprint #16)
-## Phase 4: v1.0 Polish & Agent Control Loop
+## Current Sprint: #39 (in progress)
+## Consolidated Score: 7.4/10 → target 8.5+
+## Phase 5: Habit Tracker Module (Huberman Protocol)
 
-## Reviewer Weight (Phase 4)
+## Sprint History (Phase 5)
 
-| Reviewer | Weight | Role |
-|----------|--------|------|
-| Agent Access | **70%** | Can an AI agent install, connect, query, start/stop, monitor accountability? |
-| End-user | **10%** | PWA on phone, sounds, wake lock — regression guard |
-| DevEx | **10%** | Build pipeline, code organization, test coverage — regression guard |
-| Performance | **10%** | Timer accuracy, bundle size, offline — regression guard |
+| Sprint | Focus | Key Deliverable |
+|--------|-------|-----------------|
+| #32 | Backend CRUD | Schema + mutations + 10 HTTP endpoints + CLI |
+| #33 | Agent surface | 3 MCP tools + partial name match + habit-check skill |
+| #34 | UI | /habits page + nav + dashboard widget |
+| #35 | Neuro fidelity | 2-day bins + checkin calendar + stats UI |
+| #36 | Correlation | Habit × Pomodoro cross-correlation |
+| #37 | Testing | 6 E2E tests + route registration fix |
+| #38 | Docs | pomodoro-check + agent-onboarding skill updates |
+| #39 | Integration | Weekly retro habit enrichment |
 
-## Roadmap
+## Surface Area
 
-See `docs/ROADMAP.md` for full sprint plan (Sprints #16-#24).
+| Metric | Before | After |
+|--------|--------|-------|
+| Convex tables | 5 | **7** (+habits, habitCheckins) |
+| HTTP endpoints | 33 | **44** |
+| MCP tools | 10 | **13** |
+| CLI commands | 23 | **39** |
+| E2E tests | 63 | **69** |
+| Routes | 6 | **7** (/habits) |
+| Skills | 7 | **8** (habit-check) |
 
-## Completed — Phase 4
+## Huberman Protocol Scorecard
 
-### Sprint #16 — Core UX Fix + Agent API Hardening ✅
-Timer state persistence via localStorage (survives navigation + page refresh). GET /api/sessions/active endpoint. Idempotency guard on POST /api/sessions/start (409 on conflict). `apom active` CLI command. Accountability system (heartbeat API, shame board, badge). Start/reset sounds. P1 audit fixes: CLI shame field mismatch, sessionId persistence, --help-llm corrections.
-
-**Sprint #16 Scores:**
-
-| Reviewer | #15 | #16 | Delta |
-|----------|------|------|-------|
-| Agent Access | 9.0 | **8.5** | -0.5 |
-| End-user | 9.1 | **9.5** | +0.4 |
-| DevEx | 9.0 | **8.4** | -0.6 |
-| Performance | 8.6 | **8.8** | +0.2 |
-| **Consolidated** | **8.9** | **8.6** | **-0.3** |
-
-**P2 backlog from Sprint #16 audit:**
-- ~~CLI shame field mismatch~~ FIXED
-- ~~SessionId not persisted~~ FIXED
-- ~~--help-llm wrong fields~~ FIXED
-- Skills (pomodoro-check, agent-onboarding) missing write commands + activity endpoints
-- Timer.tsx at 682 lines — extraction candidate
-- Settings API Reference only shows 4 of 10 endpoints
-
-## Completed — Phase 3: Close the Loop
-
-### Sprint #15 — Agent write-back + E2E coverage ✅
-3 POST endpoints (start, complete, interrupt) with validation and error handling. CLI commands: start, stop (--notes, --tags), interrupt. Active session tracking in config. 12 new E2E tests (completion flow, mode transitions, keyboard shortcuts, graceful degradation). Total: 33 tests. Session state validation (P1 fix: prevent double-complete/interrupt). CLI 0.3.0, --help-llm updated.
-
-**Sprint #15 Scores:**
-
-| Reviewer | #14 | #15 | Delta |
-|----------|------|------|-------|
-| End-user | 8.8 | **9.1** | +0.3 |
-| DevEx | 8.4 | **9.0** | +0.6 |
-| Performance | 8.6 | **8.6** | 0 |
-| **Consolidated** | **8.6** | **8.9** | **+0.3** |
-
-### Sprint #14 — Sounds + Wake Lock + PWA polish ✅
-Two distinct Web Audio completion sounds (singing bowl for work, ascending chime for break), Vibration API, Wake Lock API (screen stays on during timer), PWA manifest polish (id, scope, orientation, categories, maskable icon, iOS meta tags). Audio extracted to `app/lib/sounds.ts`. P2 fixes: await AudioContext.resume(), wake lock unmount cleanup.
-
-**Sprint #14 Scores:**
-
-| Reviewer | #8 | #14 | Delta |
-|----------|-----|------|-------|
-| End-user | 8.3 | **8.8** | +0.5 |
-| DevEx | 9.0 | **8.4** | -0.6 |
-| Performance | 8.2 | **8.6** | +0.4 |
-| **Consolidated** | **8.5** | **8.6** | **+0.1** |
-
-## Completed — Phase 2: Agent Platform (sprints 9-13)
-
-### Sprint #9 — REST API + API Key Auth ✅
-4 HTTP endpoints, apiKeys table (SHA-256), Settings page, auth middleware, 21 E2E tests.
-
-### Sprint #10 — `agent-pomodoro` CLI Tool ✅
-Zero-dep CLI on npm (`agent-pomodoro@0.2.0`), status/stats/sessions/config, `--help-llm`, `--json`.
-
-### Sprint #11 — Agent Access Reviewer + Open Source ✅
-MIT license, README (human + agent quickstart), Agent Access reviewer (70% primary).
-
-### Sprint #12 — Onboarding Skill + CONTRIBUTING.md ✅
-agent-onboarding skill, CONTRIBUTING.md, CLAUDE.md update.
-
-### Sprint #13 — Prod Deploy + Security Hardening ✅
-Convex + Vercel prod deployed. Security fixes: auth bypass (CRITICAL), IDOR, file permissions, CORS documentation, error handling. npm published. Repo public.
-
-### Sprint #13+ — Cleanup ✅
-Naming consistency (binary: `agent-pomodoro`), ontilt.dev article, GitHub metadata, `.env.local.example`.
-
-## Completed — Phase 1: App Polish (sprints 1-8)
-
-| Reviewer | #1 | #2 | #3 | #5 | #6 | #7 | #8 |
-|----------|-----|-----|-----|-----|-----|-----|-----|
-| End-user | 5.6 | 6.6 | 7.3 | 7.7 | 7.9 | 8.2 | **8.3** |
-| DevEx | 6.4 | 7.4 | 7.4 | 7.8 | 8.0 | 8.6 | **9.0** |
-| Performance | 5.4 | 6.6 | 7.2 | 7.2 | 7.6 | 7.8 | **8.2** |
-| **Consolidated** | **5.8** | **6.9** | **7.3** | **7.6** | **7.8** | **8.2** | **8.5** |
-
-## Backlog (deferred)
-
-- [ ] CI does not test with Convex env vars (staging tests always fail — Vercel Deployment Protection)
-- [ ] Timer state lost on page navigation
-- [ ] iOS AudioContext user gesture — sounds may not play on iOS Safari without prior interaction
-- [ ] Maskable icon safe zone — icon-512.png may clip on adaptive icon frames
-- [ ] Idempotency guard on POST /api/sessions/start (prevent duplicate sessions on retry)
-- [ ] Input length limits on notes (500 chars) and tags (10 items) in API
-- [ ] Update pomodoro-check + agent-onboarding skills with start/stop/interrupt docs
-- [ ] CLI error output should respect --json flag
-- [ ] Sound/vibration mute toggle in Settings
-- [ ] Dark/light theme toggle
-- [ ] Custom timer durations
-- [ ] Lazy-load Clerk (~80kB savings)
+| Rule | Status |
+|------|--------|
+| Max 6 active | ✅ server-enforced |
+| 85% target (4-5/6) | ✅ API + CLI + UI |
+| No compensation | ✅ by design |
+| 21-day cycles | ✅ auto-advance cron |
+| 2-day bins | ✅ in stats |
+| No streak counter | ✅ clean |
+| Linchpin habits | ✅ stored + surfaced |
+| Cross-correlation | ✅ habit × pomodoro impact |
+| Day phases | ⚠️ stored, not time-enforced |
+| Limbic friction | ❌ deferred |
 
 ## Deployment
 - **Staging:** `npm run build && npx vercel --yes`
 - **Production:** `npx vercel --prod --yes` — REQUIRES c3z APPROVAL
 - **Convex prod:** `npx convex deploy --yes` (efficient-wolf-51)
-- **npm:** `cd packages/apom && npm publish --access public` (requires OTP)
