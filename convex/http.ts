@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
+for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/sessions/commits", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -324,6 +324,56 @@ http.route({
     } catch (e: any) {
       return jsonResponse({ error: e.message || "Failed to set task" }, 400);
     }
+  }),
+});
+
+// POST /api/sessions/commits — link git commits to a session
+http.route({
+  path: "/api/sessions/commits",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (!body.sessionId) {
+      return jsonResponse({ error: "sessionId is required" }, 400);
+    }
+
+    if (!Array.isArray(body.commits) || body.commits.length === 0) {
+      return jsonResponse({ error: "commits array is required and must not be empty" }, 400);
+    }
+
+    // Validate commit objects
+    const commits = body.commits
+      .filter((c: any) => typeof c.hash === "string" && typeof c.message === "string")
+      .map((c: any) => ({
+        hash: c.hash,
+        message: c.message,
+        filesChanged: typeof c.filesChanged === "number" ? c.filesChanged : 0,
+      }));
+
+    if (commits.length === 0) {
+      return jsonResponse({ error: "No valid commits provided. Each commit needs hash and message." }, 400);
+    }
+
+    try {
+      await ctx.runMutation(api.sessions.linkCommits, {
+        sessionId: body.sessionId,
+        userId: auth.userId,
+        commits,
+      });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to link commits" }, 400);
+    }
+
+    return jsonResponse({ ok: true, linked: commits.length });
   }),
 });
 

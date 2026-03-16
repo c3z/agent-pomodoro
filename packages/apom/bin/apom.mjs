@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { execSync } from "node:child_process";
 
 const CONFIG_PATH = join(homedir(), ".agent-pomodoro.json");
 const DEFAULT_URL = "https://efficient-wolf-51.eu-west-1.convex.site";
@@ -564,6 +565,121 @@ async function cmdTags(args) {
   }
 }
 
+async function cmdLinkCommits(args) {
+  const sessionIdx = args.indexOf("--session");
+  let sessionId = sessionIdx >= 0 ? args[sessionIdx + 1] : undefined;
+  let sessionStartedAt = null;
+
+  if (!sessionId) {
+    // Try active session first
+    const activeData = await apiCall("/api/sessions/active");
+    if (activeData.session) {
+      sessionId = activeData.session._id;
+      sessionStartedAt = activeData.session.startedAt;
+    } else {
+      // Fall back to last completed session
+      const sessionsData = await apiCall("/api/sessions?limit=1");
+      if (sessionsData.sessions && sessionsData.sessions.length > 0) {
+        sessionId = sessionsData.sessions[0]._id;
+        sessionStartedAt = sessionsData.sessions[0].startedAt;
+      }
+    }
+  }
+
+  if (!sessionId) {
+    console.error("No session found. Start one first or specify --session <id>");
+    process.exit(1);
+  }
+
+  // If we don't have startedAt yet (user provided --session), fetch it
+  if (!sessionStartedAt) {
+    const sessionsData = await apiCall("/api/sessions?limit=50");
+    const found = sessionsData.sessions?.find((s) => s._id === sessionId);
+    if (found) {
+      sessionStartedAt = found.startedAt;
+    }
+  }
+
+  // Build git log command
+  const sinceArg = args.indexOf("--since");
+  let sinceDate;
+  if (sinceArg >= 0) {
+    sinceDate = args[sinceArg + 1];
+  } else if (sessionStartedAt) {
+    sinceDate = new Date(sessionStartedAt).toISOString();
+  }
+
+  let gitCmd = "git log --format=%H|%s|%n --numstat";
+  if (sinceDate) {
+    gitCmd += ` --since="${sinceDate}"`;
+  }
+
+  let gitOutput;
+  try {
+    gitOutput = execSync(gitCmd, { encoding: "utf-8", timeout: 10000 });
+  } catch (e) {
+    console.error("Failed to run git log. Are you in a git repository?");
+    if (e.stderr) console.error(e.stderr);
+    process.exit(1);
+  }
+
+  if (!gitOutput.trim()) {
+    console.log("No commits found in the time window.");
+    process.exit(0);
+  }
+
+  // Parse git log output: lines alternate between "hash|subject|" and numstat lines
+  const commits = [];
+  const lines = gitOutput.trim().split("\n");
+  let currentCommit = null;
+
+  for (const line of lines) {
+    if (line.includes("|")) {
+      const parts = line.split("|");
+      if (parts[0] && parts[0].length === 40) {
+        // Save previous commit
+        if (currentCommit) {
+          commits.push(currentCommit);
+        }
+        currentCommit = {
+          hash: parts[0],
+          message: parts.slice(1, -1).join("|").trim(),
+          filesChanged: 0,
+        };
+        continue;
+      }
+    }
+    // numstat line: "added\tremoved\tfilename"
+    if (currentCommit && line.match(/^\d+\t\d+\t/)) {
+      currentCommit.filesChanged++;
+    }
+  }
+  // Don't forget last commit
+  if (currentCommit) {
+    commits.push(currentCommit);
+  }
+
+  if (commits.length === 0) {
+    console.log("No commits parsed from git log output.");
+    process.exit(0);
+  }
+
+  // Send to API
+  const data = await apiPost("/api/sessions/commits", {
+    sessionId,
+    commits,
+  });
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify({ ok: true, sessionId, linked: data.linked, commits }, null, 2));
+  } else {
+    console.log(`Linked ${data.linked} commit${data.linked !== 1 ? "s" : ""} to session ${sessionId}`);
+    for (const c of commits) {
+      console.log(`  ${c.hash.slice(0, 7)} ${c.message} (${c.filesChanged} files)`);
+    }
+  }
+}
+
 function cmdConfig(args) {
   const subCmd = args[0];
 
@@ -604,7 +720,7 @@ function cmdConfig(args) {
 function cmdHelpLlm() {
   const schema = {
     name: "agent-pomodoro",
-    version: "0.4.0",
+    version: "0.5.0",
     description: "CLI for AI agents to query and control Agent Pomodoro focus sessions",
     base_url: getBaseUrl(),
     auth: {
@@ -796,6 +912,17 @@ function cmdHelpLlm() {
         },
       },
       {
+        name: "link-commits",
+        description: "Link git commits to a pomodoro session. Auto-detects commits from session time window using local git log.",
+        usage: "agent-pomodoro link-commits [--session <id>] [--since <ISO-date>] [--json]",
+        endpoint: "POST /api/sessions/commits",
+        parameters: {
+          session: { type: "string", optional: true, description: "Session ID (defaults to active or last completed)" },
+          since: { type: "string", optional: true, description: "Override git log --since (ISO date)" },
+        },
+        response_example: { ok: true, linked: 3 },
+      },
+      {
         name: "tags",
         description: "Tag breakdown: count and total focus time per tag for completed work sessions",
         usage: "agent-pomodoro tags [days] [--json]",
@@ -858,6 +985,8 @@ Usage:
   agent-pomodoro accountability      Accountability score (default: 7d)
   agent-pomodoro accountability --shame  Include shame log
   agent-pomodoro nudges              Fetch pending server nudges
+  agent-pomodoro link-commits        Link git commits to active/last session
+  agent-pomodoro link-commits --session <id>  Link to specific session
   agent-pomodoro tags [days]         Tag breakdown (default: 30 days)
   agent-pomodoro daily-summary       Today's summary (Markdown)
   agent-pomodoro daily-summary --date 2025-01-15  Specific date
@@ -931,6 +1060,8 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdTags(args.slice(1));
 } else if (cmd === "goals") {
   await cmdGoals(args.slice(1));
+} else if (cmd === "link-commits") {
+  await cmdLinkCommits(args.slice(1));
 } else if (cmd === "config") {
   cmdConfig(args.slice(1));
 } else {

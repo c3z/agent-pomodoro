@@ -15,7 +15,83 @@ description: |
 This skill lets Claude Code (Atropa) query c3z's Pomodoro usage and hold him accountable.
 Used proactively during morning routines, evening reviews, or when c3z seems distracted.
 
-## Proactive Check
+---
+
+## MANDATORY: Conversation Start (run at the START of every Claude Code conversation)
+
+This is non-negotiable. Every conversation begins with this sequence:
+
+### Step 1: Check active session
+```bash
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro active
+```
+
+### Step 2: Auto-start if needed
+If **no active session** and it's during work hours (9:00-18:00 CET):
+1. Do NOT ask — just start: `APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro start work 25`
+2. Inform c3z briefly: "Odpalam pomodoro."
+
+If a session IS active, note the task and remaining time — use it as context.
+
+### Step 3: Set task from first user message
+Extract the task description from the user's first message. Infer, do not ask.
+
+**Examples:**
+- "fix the auth bug" --> `APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro task set "Fix auth bug"`
+- "add dark mode" --> `APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro task set "Add dark mode"`
+- "implement sprint 26" --> `APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro task set "Sprint 26 implementation"`
+- "review the PR" --> `APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro task set "PR review"`
+- casual chat / no clear task --> skip task set
+
+**Rules:**
+- Capitalize first letter, keep it concise (3-8 words)
+- Strip filler words ("can you", "please", "I want to")
+- If user's message implies a task, set it — even if they didn't explicitly ask for pomodoro
+- If the task changes mid-conversation, update it with another `task set`
+
+### Step 4: Follow up with status
+```bash
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro status
+```
+
+---
+
+## CONVERSATION END: Auto-stop with context
+
+When the conversation is ending (user says goodbye, task is done, or conversation naturally wraps up):
+
+1. Invoke the **auto-tag** skill to generate tags and notes from git context
+2. If auto-tag is not applicable (no git changes), manually suggest:
+   ```bash
+   APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro stop --notes "summary of what was done" --tags "relevant,tags"
+   ```
+3. Generate notes from the conversation: what was discussed, what was accomplished
+4. Generate tags from the work done (use vocabulary: code, backend, frontend, tests, docs, refactor, feature, fix, config, review, planning, debug)
+
+**Example end-of-conversation suggestion:**
+"Kończę sesję: `apom stop --notes 'Implemented sprint 26: auto-start, task capture, auto-tag skills' --tags 'feature,docs,config'`"
+
+---
+
+## Task Auto-Capture
+
+The agent should continuously track what c3z is working on and keep the pomodoro task updated.
+
+### Capture patterns
+- **Explicit task:** "fix bug in auth" --> set immediately
+- **Implicit task:** "let's look at the timer component" --> `task set "Investigating timer component"`
+- **Sprint work:** "implement sprint 26" --> `task set "Sprint 26: [first item description]"`
+- **Review work:** "review PR #42" --> `task set "Review PR #42"`
+- **Debugging:** "why is this failing" --> `task set "Debug: [context from conversation]"`
+
+### Update triggers
+- Task clearly shifts mid-conversation --> update with new `task set`
+- User explicitly asks to change focus --> update immediately
+- Do NOT update on every small sub-task — only when the main focus changes
+
+---
+
+## Proactive Check (legacy — now part of Conversation Start)
 
 Run `agent-pomodoro active` at the start of **every** conversation. This is the PRIMARY check — do it before anything else.
 
@@ -24,8 +100,8 @@ APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro active
 ```
 
 If no session is active and it's during work hours (9:00-18:00 CET):
-1. Suggest starting one: "Cezary, brak aktywnej sesji. Odpalamy pomodoro?"
-2. If he agrees (or doesn't object), start it: `agent-pomodoro start work 25 --task "context from conversation"`
+1. Do NOT ask — just start it: `agent-pomodoro start work 25`
+2. Set task from first user message via `agent-pomodoro task set "..."`
 3. If a session IS active, note the task and remaining time — use it as context.
 
 Then follow up with `agent-pomodoro status` for the full picture.

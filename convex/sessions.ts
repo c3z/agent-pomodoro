@@ -391,6 +391,32 @@ export const accountabilityToday = query({
   },
 });
 
+export const linkCommits = mutation({
+  args: {
+    sessionId: v.id("pomodoroSessions"),
+    userId: v.string(),
+    commits: v.array(v.object({
+      hash: v.string(),
+      message: v.string(),
+      filesChanged: v.number(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.userId !== args.userId) {
+      throw new Error("Session not found or access denied");
+    }
+    // Max 50 commits per session, sanitize fields
+    const commits = args.commits.slice(0, 50).map((c) => ({
+      hash: c.hash.slice(0, 40),
+      message: c.message.slice(0, 200),
+      filesChanged: Math.max(0, c.filesChanged),
+    }));
+    await ctx.db.patch(args.sessionId, { commits });
+  },
+});
+
 export const tagAnalytics = query({
   args: {
     userId: v.string(),

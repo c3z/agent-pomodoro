@@ -1,3 +1,9 @@
+interface Commit {
+  hash: string;
+  message: string;
+  filesChanged: number;
+}
+
 interface Session {
   _id: string;
   type: "work" | "break" | "longBreak";
@@ -8,6 +14,7 @@ interface Session {
   interrupted: boolean;
   notes?: string;
   tags?: string[];
+  commits?: Commit[];
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -110,8 +117,16 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
                         interrupted
                       </span>
                     )}
+                    {s.commits && s.commits.length > 0 && (
+                      <span
+                        className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-purple-900/30 text-purple-400 ml-auto"
+                        title={s.commits.map((c) => `${c.hash.slice(0, 7)} ${c.message}`).join("\n")}
+                      >
+                        {s.commits.length} commit{s.commits.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
                     {s.tags && s.tags.length > 0 && (
-                      <div className="flex gap-1 ml-auto">
+                      <div className={`flex gap-1 ${!s.commits?.length ? "ml-auto" : ""}`}>
                         {s.tags.map((tag) => (
                           <span
                             key={tag}
@@ -123,7 +138,7 @@ export function SessionList({ sessions }: { sessions: Session[] }) {
                       </div>
                     )}
                     {s.notes && (
-                      <span className={`text-gray-500 text-xs ${!s.tags?.length ? "ml-auto" : ""} truncate max-w-48`}>
+                      <span className={`text-gray-500 text-xs ${!s.tags?.length && !s.commits?.length ? "ml-auto" : ""} truncate max-w-48`}>
                         {s.notes}
                       </span>
                     )}
