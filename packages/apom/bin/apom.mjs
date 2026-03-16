@@ -324,19 +324,18 @@ async function cmdAccountability(args) {
   console.log(`Protected windows: ${data.protectedWindows ?? 0}`);
   console.log(`Unprotected windows: ${data.unprotectedWindows ?? 0}`);
 
-  if (data.totalHeartbeats !== undefined) {
-    console.log(`Total heartbeats: ${data.totalHeartbeats}`);
+  if (data.totalWindows !== undefined) {
+    console.log(`Total windows: ${data.totalWindows}`);
   }
 
   if (showShame) {
     const shame = await apiCall(`/api/activity/shame?days=${days}`);
-    if (shame.windows && shame.windows.length > 0) {
-      console.log(`\nShame log (${shame.windows.length} unprotected windows):`);
-      for (const w of shame.windows) {
-        const start = new Date(w.start).toLocaleString("pl-PL");
-        const end = new Date(w.end).toLocaleString("pl-PL");
-        const duration = w.durationMinutes ? `${w.durationMinutes}min` : "";
-        console.log(`  ${start} — ${end} ${duration}`);
+    if (shame.shameWindows && shame.shameWindows.length > 0) {
+      console.log(`\nShame log (${shame.shameWindows.length} unprotected windows):`);
+      for (const w of shame.shameWindows) {
+        const start = new Date(w.startedAt).toLocaleString("pl-PL");
+        const end = new Date(w.endedAt).toLocaleString("pl-PL");
+        console.log(`  ${start} — ${end} (${w.durationMinutes}min)`);
       }
     } else {
       console.log("\nNo shame windows. Good job.");
@@ -489,10 +488,10 @@ function cmdHelpLlm() {
         },
         response_example: {
           score: 73,
-          verdict: "decent",
-          protectedWindows: 11,
-          unprotectedWindows: 4,
-          totalHeartbeats: 156,
+          verdict: "inconsistent",
+          protectedWindows: 61,
+          unprotectedWindows: 23,
+          totalWindows: 84,
           period: "7d",
         },
       },
