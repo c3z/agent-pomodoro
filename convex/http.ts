@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame"]) {
+for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -363,6 +363,120 @@ http.route({
     });
 
     return jsonResponse(result);
+  }),
+});
+
+// GET /api/nudges — fetch pending nudges, mark as delivered
+http.route({
+  path: "/api/nudges",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const nudges = await ctx.runQuery(internal.nudges.getPendingNudges, {
+      userId: auth.userId,
+    });
+
+    // Mark as delivered
+    if (nudges.length > 0) {
+      const nudgeIds = nudges.map((n: any) => n._id);
+      await ctx.runMutation(internal.nudges.markDelivered, { nudgeIds });
+    }
+
+    return jsonResponse({
+      nudges: nudges.map((n: any) => ({
+        type: n.type,
+        message: n.message,
+        createdAt: n.createdAt,
+      })),
+    });
+  }),
+});
+
+// GET /api/daily-summary?date=YYYY-MM-DD — daily summary for a specific date
+http.route({
+  path: "/api/daily-summary",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const url = new URL(request.url);
+    const dateParam = url.searchParams.get("date");
+
+    let targetDate: Date;
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      targetDate = new Date(dateParam + "T00:00:00");
+    } else {
+      targetDate = new Date();
+    }
+    targetDate.setHours(0, 0, 0, 0);
+    const startTs = targetDate.getTime();
+    const endTs = startTs + 24 * 60 * 60 * 1000;
+
+    const dateStr = targetDate.toISOString().slice(0, 10);
+
+    // Get sessions for the day
+    const sessions = await ctx.runQuery(api.sessions.listByUser, {
+      userId: auth.userId,
+      limit: 200,
+    });
+    const daySessions = sessions.filter(
+      (s: any) => s.startedAt >= startTs && s.startedAt < endTs
+    );
+
+    const workSessions = daySessions.filter((s: any) => s.type === "work");
+    const completedWork = workSessions.filter((s: any) => s.completed);
+    const interruptedWork = workSessions.filter((s: any) => s.interrupted);
+    const totalFocusMin = completedWork.reduce(
+      (sum: number, s: any) => sum + s.durationMinutes,
+      0
+    );
+
+    // Tags breakdown
+    const tagCounts: Record<string, number> = {};
+    for (const s of completedWork) {
+      if (s.tags) {
+        for (const tag of s.tags) {
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+        }
+      }
+    }
+
+    // Accountability for the day
+    const accountability = await ctx.runQuery(
+      internal.activity.getAccountability,
+      { userId: auth.userId, sinceDaysAgo: 1 }
+    );
+
+    return jsonResponse({
+      date: dateStr,
+      sessions: daySessions.map((s: any) => ({
+        type: s.type,
+        durationMinutes: s.durationMinutes,
+        startedAt: s.startedAt,
+        completed: s.completed,
+        interrupted: s.interrupted,
+        tags: s.tags || [],
+        currentTask: s.currentTask || null,
+        notes: s.notes || null,
+      })),
+      summary: {
+        totalSessions: workSessions.length,
+        completedSessions: completedWork.length,
+        interruptedSessions: interruptedWork.length,
+        totalFocusMinutes: totalFocusMin,
+        totalFocusHours: Math.round((totalFocusMin / 60) * 10) / 10,
+        completionRate:
+          workSessions.length > 0
+            ? Math.round((completedWork.length / workSessions.length) * 100)
+            : 0,
+        tags: tagCounts,
+        accountabilityScore: accountability.score,
+        accountabilityVerdict: accountability.verdict,
+      },
+    });
   }),
 });
 

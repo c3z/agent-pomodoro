@@ -42,4 +42,13 @@ export default defineSchema({
     hadActivePomodoro: v.boolean(),
   })
     .index("by_user_window", ["userId", "windowStart"]),
+
+  nudges: defineTable({
+    userId: v.string(),
+    type: v.string(),        // "idle_warning", "no_session_today"
+    message: v.string(),
+    createdAt: v.number(),
+    delivered: v.boolean(),
+  })
+    .index("by_user_pending", ["userId", "delivered", "createdAt"]),
 });
