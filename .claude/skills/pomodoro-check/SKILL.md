@@ -49,7 +49,17 @@ Extract the task description from the user's first message. Infer, do not ask.
 - If user's message implies a task, set it — even if they didn't explicitly ask for pomodoro
 - If the task changes mid-conversation, update it with another `task set`
 
-### Step 4: Follow up with status
+### Step 4: Check habits
+```bash
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits
+```
+
+Interpret habit status (see habit-check skill for full rules):
+- **done/total >= 85%** → "Nawyki OK."
+- **Linchpin (★) missed** → scold: "Exercise not done — cascade risk."
+- **0 done past noon** → "Nawyki: 0/N. Zacznij od linchpina."
+
+### Step 5: Follow up with status
 ```bash
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro status
 ```
@@ -204,6 +214,24 @@ agent-pomodoro --help-llm    # full JSON schema for agents (no key needed)
 | `interrupt [--json]` | Cancel active session |
 | `heartbeat [--daemon] [--source name]` | Send activity heartbeat |
 | `accountability [--days N] [--shame] [--json]` | Accountability score + shame log |
+| `goals [--json]` | Show daily/weekly goals + progress |
+| `goals set --daily N --weekly N` | Set goal targets |
+| `habits [--json]` | Today's habits + completion status |
+| `habits add "Name" --phase hard [--linchpin]` | Create a habit (max 6) |
+| `habits done "Name" [--date YYYY-MM-DD]` | Check in habit for today |
+| `habits undo "Name"` | Uncheck habit |
+| `habits stats [days] [--json]` | Completion rates + 2-day bins |
+| `habits cycle [--json]` | 21-day cycle status |
+| `habits correlation [days] [--json]` | Habit × Pomodoro impact |
+| `habits archive "Name"` | Remove from active |
+| `nudges [--json]` | Pending server nudges |
+| `tags [days] [--json]` | Tag breakdown |
+| `rhythm [days] [--json]` | Focus rhythm analysis |
+| `retro [--json]` | Weekly retrospective |
+| `debt [--json]` | Pomodoro debt |
+| `trends [--json]` | 7d trend comparison |
+| `daily-summary [--obsidian] [--output path]` | Daily summary |
+| `link-commits [--session id]` | Link git commits to session |
 | `config set-key <key>` | Set API key |
 | `config set-url <url>` | Set Convex site URL |
 | `config show` | Show current config |

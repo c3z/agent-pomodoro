@@ -71,9 +71,25 @@ If you get an error, check:
 | `agent-pomodoro heartbeat` | Send a single activity heartbeat |
 | `agent-pomodoro heartbeat --daemon` | Send heartbeat every 30s (keep running) |
 | `agent-pomodoro heartbeat --source name` | Heartbeat with custom source label |
-| `agent-pomodoro accountability` | Accountability score (default: last 7 days) |
-| `agent-pomodoro accountability --days 30` | Accountability score for 30 days |
-| `agent-pomodoro accountability --shame` | Include shame log (unprotected work windows) |
+| `agent-pomodoro accountability [--days N] [--shame]` | Accountability score + shame log |
+| `agent-pomodoro goals` | Daily/weekly goals + progress |
+| `agent-pomodoro goals set --daily N --weekly N` | Set goal targets |
+| `agent-pomodoro habits` | Today's habits + completion (Huberman protocol) |
+| `agent-pomodoro habits add "Name" --phase hard [--linchpin]` | Create habit (max 6) |
+| `agent-pomodoro habits done "Name"` | Check in habit for today |
+| `agent-pomodoro habits undo "Name"` | Uncheck habit |
+| `agent-pomodoro habits stats [days]` | Completion rates + 2-day bins |
+| `agent-pomodoro habits cycle` | 21-day cycle status |
+| `agent-pomodoro habits correlation [days]` | Habit × Pomodoro impact |
+| `agent-pomodoro habits archive "Name"` | Remove from active list |
+| `agent-pomodoro nudges` | Pending server nudges |
+| `agent-pomodoro tags [days]` | Tag breakdown |
+| `agent-pomodoro rhythm [days]` | Focus rhythm by hour/day |
+| `agent-pomodoro retro` | Weekly retrospective (Markdown) |
+| `agent-pomodoro debt` | Pomodoro debt (carry-forward) |
+| `agent-pomodoro trends` | 7d vs 7d trend comparison |
+| `agent-pomodoro daily-summary [--obsidian] [--output path]` | Daily summary |
+| `agent-pomodoro link-commits [--session id]` | Link git commits to session |
 | `agent-pomodoro config set-key <key>` | Set API key |
 | `agent-pomodoro config set-url <url>` | Set custom Convex site URL |
 | `agent-pomodoro config show` | Show current config |
@@ -172,6 +188,27 @@ curl -X POST -H "Authorization: Bearer apom_xxx" -H "Content-Type: application/j
 | POST | `/api/activity/heartbeat` | Record work activity heartbeat |
 | GET | `/api/activity/accountability?days=N` | Accountability score |
 | GET | `/api/activity/shame?days=N` | Shame log (unprotected windows) |
+| GET | `/api/me` | Authenticated user info from API key |
+| GET | `/api/goals` | Daily/weekly goals + progress |
+| POST | `/api/goals` | Set goal targets |
+| GET | `/api/nudges` | Pending nudges (marks as delivered) |
+| GET | `/api/daily-summary?date=YYYY-MM-DD` | Daily summary |
+| GET | `/api/stats/tags?days=N` | Tag analytics |
+| GET | `/api/stats/rhythm?days=N` | Focus rhythm by hour/day |
+| GET | `/api/stats/debt` | Pomodoro debt |
+| GET | `/api/stats/trends` | 7d vs 7d trends |
+| GET | `/api/retro` | Weekly retrospective |
+| POST | `/api/sessions/commits` | Link git commits to session |
+| GET | `/api/habits` | List active habits |
+| GET | `/api/habits/today` | Today's habits + completion + Huberman target |
+| POST | `/api/habits` | Create a habit (max 6) |
+| POST | `/api/habits/update` | Update habit fields |
+| POST | `/api/habits/checkin` | Mark habit done |
+| POST | `/api/habits/uncheckin` | Unmark habit |
+| POST | `/api/habits/archive` | Archive a habit |
+| GET | `/api/habits/stats?days=N` | Completion rates + 2-day bins |
+| GET | `/api/habits/cycle` | 21-day cycle status |
+| GET | `/api/habits/correlation?days=N` | Habit × Pomodoro impact |
 
 ## How to Interpret Data
 
