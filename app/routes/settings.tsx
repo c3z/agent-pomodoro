@@ -129,12 +129,16 @@ export default function Settings() {
   };
 
   const handleSaveWorkday = () => {
-    if (workdayEnd <= workdayStart) {
+    const start = Math.max(0, Math.min(23, workdayStart));
+    const end = Math.max(0, Math.min(23, workdayEnd));
+    if (end <= start) {
       setWorkdayError("End hour must be after start hour");
       return;
     }
     setWorkdayError(null);
-    saveWorkdayHours(workdayStart, workdayEnd);
+    setWorkdayStart(start);
+    setWorkdayEnd(end);
+    saveWorkdayHours(start, end);
     setWorkdaySaved(true);
     setTimeout(() => setWorkdaySaved(false), 2000);
   };

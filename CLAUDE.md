@@ -61,8 +61,9 @@ app/
 │   ├── AuthGate.tsx     # Clerk sign-in gate
 │   └── Providers.tsx    # Clerk + Convex providers
 └── lib/
-    ├── sounds.ts        # Web Audio sounds (start, reset, completion) + vibration
+    ├── sounds.ts        # Web Audio sounds (start, reset, completion) + vibration + mute
     ├── accountability.ts # Pure computation: score, gaps, timeline, grades
+    ├── timerSettings.ts # Timer config persistence (localStorage)
     ├── useUserId.ts     # User ID hook (Clerk/dev)
     └── retryQueue.ts    # localStorage-based offline mutation retry
 
