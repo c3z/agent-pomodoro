@@ -64,4 +64,35 @@ export default defineSchema({
     weeklyFocusHours: v.number(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  habits: defineTable({
+    userId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    phase: v.union(v.literal("hard"), v.literal("easy")),
+    isLinchpin: v.boolean(),
+    color: v.optional(v.string()),
+    position: v.number(),
+    cycleStartedAt: v.number(),
+    cyclePhase: v.union(
+      v.literal("forming"),
+      v.literal("testing"),
+      v.literal("established")
+    ),
+    createdAt: v.number(),
+    archivedAt: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_active", ["userId", "archivedAt"]),
+
+  habitCheckins: defineTable({
+    userId: v.string(),
+    habitId: v.id("habits"),
+    date: v.string(),
+    completed: v.boolean(),
+    notes: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_habit_date", ["habitId", "date"])
+    .index("by_user_date", ["userId", "date"]),
 });

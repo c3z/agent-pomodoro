@@ -78,7 +78,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/stats/rhythm", "/api/stats/debt", "/api/stats/trends", "/api/retro", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/sessions/commits", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
+for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/stats/rhythm", "/api/stats/debt", "/api/stats/trends", "/api/retro", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/sessions/commits", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals", "/api/habits", "/api/habits/today", "/api/habits/stats", "/api/habits/cycle", "/api/habits/checkin", "/api/habits/uncheckin", "/api/habits/archive", "/api/habits/update"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -677,6 +677,222 @@ http.route({
       userId: auth.userId,
     });
     return jsonResponse(trends);
+  }),
+});
+
+// ── Habits API ─────────────────────────────────────────────────────
+
+// GET /api/habits — list active habits
+http.route({
+  path: "/api/habits",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const habits = await ctx.runQuery(api.habits.list, {
+      userId: auth.userId,
+    });
+    return jsonResponse({ habits });
+  }),
+});
+
+// POST /api/habits — create a new habit
+http.route({
+  path: "/api/habits",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
+
+    if (!body.name || typeof body.name !== "string") {
+      return jsonResponse({ error: "name (string) is required" }, 400);
+    }
+    if (!body.phase || !["hard", "easy"].includes(body.phase)) {
+      return jsonResponse({ error: "phase must be 'hard' or 'easy'" }, 400);
+    }
+
+    try {
+      const habitId = await ctx.runMutation(api.habits.create, {
+        userId: auth.userId,
+        name: body.name,
+        description: typeof body.description === "string" ? body.description : undefined,
+        phase: body.phase,
+        isLinchpin: typeof body.isLinchpin === "boolean" ? body.isLinchpin : undefined,
+        color: typeof body.color === "string" ? body.color : undefined,
+      });
+      return jsonResponse({ habitId }, 201);
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to create habit" }, 400);
+    }
+  }),
+});
+
+// POST /api/habits/update — update habit fields
+http.route({
+  path: "/api/habits/update",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
+
+    if (!body.habitId) {
+      return jsonResponse({ error: "habitId is required" }, 400);
+    }
+
+    try {
+      await ctx.runMutation(api.habits.update, {
+        habitId: body.habitId,
+        userId: auth.userId,
+        ...(typeof body.name === "string" ? { name: body.name } : {}),
+        ...(typeof body.description === "string" ? { description: body.description } : {}),
+        ...(body.phase === "hard" || body.phase === "easy" ? { phase: body.phase } : {}),
+        ...(typeof body.isLinchpin === "boolean" ? { isLinchpin: body.isLinchpin } : {}),
+        ...(typeof body.color === "string" ? { color: body.color } : {}),
+      });
+      return jsonResponse({ ok: true });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to update habit" }, 400);
+    }
+  }),
+});
+
+// POST /api/habits/archive — archive a habit (soft delete)
+http.route({
+  path: "/api/habits/archive",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
+
+    if (!body.habitId) {
+      return jsonResponse({ error: "habitId is required" }, 400);
+    }
+
+    try {
+      await ctx.runMutation(api.habits.archive, {
+        habitId: body.habitId,
+        userId: auth.userId,
+      });
+      return jsonResponse({ ok: true });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to archive habit" }, 400);
+    }
+  }),
+});
+
+// GET /api/habits/today — today's habits + completion status
+http.route({
+  path: "/api/habits/today",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const url = new URL(request.url);
+    const date = url.searchParams.get("date") ?? undefined;
+
+    const status = await ctx.runQuery(api.habits.dailyStatus, {
+      userId: auth.userId,
+      date,
+    });
+    return jsonResponse(status);
+  }),
+});
+
+// POST /api/habits/checkin — mark habit done for a date
+http.route({
+  path: "/api/habits/checkin",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
+
+    if (!body.habitId) {
+      return jsonResponse({ error: "habitId is required" }, 400);
+    }
+
+    try {
+      await ctx.runMutation(api.habits.checkin, {
+        habitId: body.habitId,
+        userId: auth.userId,
+        date: typeof body.date === "string" ? body.date : undefined,
+        completed: typeof body.completed === "boolean" ? body.completed : undefined,
+        notes: typeof body.notes === "string" ? body.notes : undefined,
+      });
+      return jsonResponse({ ok: true });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to check in" }, 400);
+    }
+  }),
+});
+
+// POST /api/habits/uncheckin — unmark habit for a date
+http.route({
+  path: "/api/habits/uncheckin",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    const { data: body, error } = await parseJsonBody(request);
+    if (error) return error;
+
+    if (!body.habitId) {
+      return jsonResponse({ error: "habitId is required" }, 400);
+    }
+
+    try {
+      await ctx.runMutation(api.habits.uncheckin, {
+        habitId: body.habitId,
+        userId: auth.userId,
+        date: typeof body.date === "string" ? body.date : undefined,
+      });
+      return jsonResponse({ ok: true });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to uncheckin" }, 400);
+    }
+  }),
+});
+
+// GET /api/habits/stats?days=30 — completion rates per habit
+http.route({
+  path: "/api/habits/stats",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const sinceDaysAgo = parseDaysParam(request, 30, 365);
+    const stats = await ctx.runQuery(api.habits.habitStats, {
+      userId: auth.userId,
+      sinceDaysAgo,
+    });
+    return jsonResponse(stats);
+  }),
+});
+
+// GET /api/habits/cycle — 21-day cycle status per habit
+http.route({
+  path: "/api/habits/cycle",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const cycles = await ctx.runQuery(api.habits.cycleStatus, {
+      userId: auth.userId,
+    });
+    return jsonResponse({ cycles });
   }),
 });
 

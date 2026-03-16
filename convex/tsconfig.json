@@ -6,7 +6,8 @@
     "strict": true,
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true
   },
   "include": ["./**/*"],
   "exclude": ["./_generated"]

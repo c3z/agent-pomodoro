@@ -536,6 +536,177 @@ async function cmdGoals(args) {
   }
 }
 
+async function cmdHabits(args) {
+  const subCmd = args[0];
+
+  if (subCmd === "add") {
+    const name = args[1];
+    if (!name) {
+      console.error("Usage: agent-pomodoro habits add \"Morning exercise\" --phase hard [--linchpin] [--description \"...\"]");
+      process.exit(1);
+    }
+
+    const phaseIdx = args.indexOf("--phase");
+    const phase = phaseIdx >= 0 ? args[phaseIdx + 1] : "easy";
+    if (!["hard", "easy"].includes(phase)) {
+      console.error("Phase must be 'hard' or 'easy'");
+      process.exit(1);
+    }
+
+    const descIdx = args.indexOf("--description");
+    const description = descIdx >= 0 ? args[descIdx + 1] : undefined;
+
+    const isLinchpin = args.includes("--linchpin");
+
+    const colorIdx = args.indexOf("--color");
+    const color = colorIdx >= 0 ? args[colorIdx + 1] : undefined;
+
+    const body = { name, phase, isLinchpin, description, color };
+    const data = await apiPost("/api/habits", body);
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      console.log(`Created habit: ${name} (${phase}, ${isLinchpin ? "linchpin" : "regular"})`);
+      console.log(`ID: ${data.habitId}`);
+    }
+  } else if (subCmd === "done") {
+    const nameOrId = args[1];
+    if (!nameOrId) {
+      console.error("Usage: agent-pomodoro habits done \"Exercise\" [--date YYYY-MM-DD] [--notes \"...\"]");
+      process.exit(1);
+    }
+
+    const habitId = await resolveHabitId(nameOrId);
+    const dateIdx = args.indexOf("--date");
+    const date = dateIdx >= 0 ? args[dateIdx + 1] : undefined;
+    const notesIdx = args.indexOf("--notes");
+    const notes = notesIdx >= 0 ? args[notesIdx + 1] : undefined;
+
+    await apiPost("/api/habits/checkin", { habitId, date, completed: true, notes });
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify({ ok: true, habitId, date }));
+    } else {
+      console.log(`✓ ${nameOrId} — done${date ? ` (${date})` : " today"}`);
+    }
+  } else if (subCmd === "undo") {
+    const nameOrId = args[1];
+    if (!nameOrId) {
+      console.error("Usage: agent-pomodoro habits undo \"Exercise\" [--date YYYY-MM-DD]");
+      process.exit(1);
+    }
+
+    const habitId = await resolveHabitId(nameOrId);
+    const dateIdx = args.indexOf("--date");
+    const date = dateIdx >= 0 ? args[dateIdx + 1] : undefined;
+
+    await apiPost("/api/habits/uncheckin", { habitId, date });
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify({ ok: true, habitId }));
+    } else {
+      console.log(`✗ ${nameOrId} — unchecked${date ? ` (${date})` : " today"}`);
+    }
+  } else if (subCmd === "archive") {
+    const nameOrId = args[1];
+    if (!nameOrId) {
+      console.error("Usage: agent-pomodoro habits archive \"Exercise\"");
+      process.exit(1);
+    }
+
+    const habitId = await resolveHabitId(nameOrId);
+    await apiPost("/api/habits/archive", { habitId });
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify({ ok: true, habitId }));
+    } else {
+      console.log(`Archived: ${nameOrId}`);
+    }
+  } else if (subCmd === "stats") {
+    const daysArg = args.find((a) => /^\d+d?$/.test(a));
+    const days = daysArg ? parseInt(daysArg) : 30;
+    const data = await apiCall(`/api/habits/stats?days=${days}`);
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      if (data.stats.length === 0) {
+        console.log("No active habits.");
+      } else {
+        console.log(`Habit stats (${data.period}):\n`);
+        for (const s of data.stats) {
+          const filled = Math.round(s.completionRate / 5);
+          const bar = "█".repeat(filled) + "░".repeat(20 - filled);
+          const pin = s.isLinchpin ? " ★" : "";
+          const name = s.name.length > 20 ? s.name.slice(0, 19) + "…" : s.name;
+          console.log(`  ${name.padEnd(22)} ${bar} ${String(s.completionRate).padStart(3)}%  (${s.completedDays}/${s.totalDays}d)${pin}`);
+        }
+      }
+    }
+  } else if (subCmd === "cycle") {
+    const data = await apiCall("/api/habits/cycle");
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      if (data.cycles.length === 0) {
+        console.log("No active habits.");
+      } else {
+        console.log("21-day cycles:\n");
+        for (const c of data.cycles) {
+          const progress = "●".repeat(c.cycleDay) + "○".repeat(21 - c.cycleDay);
+          console.log(`  ${c.name.padEnd(24)} [${progress}] day ${c.cycleDay}/21 (${c.cyclePhase})`);
+        }
+      }
+    }
+  } else {
+    // Default: show today's habits
+    const data = await apiCall("/api/habits/today");
+
+    if (args.includes("--json")) {
+      console.log(JSON.stringify(data, null, 2));
+    } else {
+      if (data.habits.length === 0) {
+        console.log("No habits configured. Add one: agent-pomodoro habits add \"Exercise\" --phase hard");
+      } else {
+        console.log(`Habits — ${data.date} (${data.done}/${data.total}):\n`);
+        for (const h of data.habits) {
+          const check = h.completed ? "✓" : "✗";
+          const phase = h.phase === "hard" ? "H" : "E";
+          const pin = h.isLinchpin ? " ★" : "";
+          const name = h.name.length > 20 ? h.name.slice(0, 19) + "…" : h.name;
+          const cycle = h.cycleDay ? ` (${h.cyclePhase} d${h.cycleDay}/21)` : "";
+          console.log(`  ${check} [${phase}] ${name}${pin}${cycle}`);
+        }
+        const pct = data.total > 0 ? Math.round((data.done / data.total) * 100) : 0;
+        const status = pct >= 85 ? "ON TARGET" : "BELOW TARGET";
+        console.log(`\n  Score: ${pct}% — ${status} (Huberman: 85%)`);
+      }
+    }
+  }
+}
+
+async function resolveHabitId(nameOrId) {
+  // Convex IDs are alphanumeric, 20+ chars
+  if (/^[a-z0-9]+$/i.test(nameOrId) && nameOrId.length >= 16) return nameOrId;
+
+  // Otherwise resolve by name
+  const data = await apiCall("/api/habits");
+  const match = data.habits.find(
+    (h) => h.name.toLowerCase() === nameOrId.toLowerCase()
+  );
+  if (!match) {
+    console.error(`Habit not found: "${nameOrId}"`);
+    console.error("Active habits:");
+    for (const h of data.habits) {
+      console.error(`  - ${h.name}`);
+    }
+    process.exit(1);
+  }
+  return match._id;
+}
+
 async function cmdTags(args) {
   const daysArg = args.find((a) => /^\d+d?$/.test(a));
   const days = daysArg ? parseInt(daysArg) : 30;
@@ -1164,6 +1335,52 @@ function cmdHelpLlm() {
         },
       },
       {
+        name: "habits",
+        description: "Habit tracker based on Huberman protocol. Max 6 active habits, 21-day cycles (forming→testing→established), target 85% (4-5/6 daily).",
+        usage: "agent-pomodoro habits [--json]",
+        endpoint: "GET /api/habits/today",
+        response_example: { date: "2026-03-16", habits: [{ _id: "abc123", name: "Exercise", phase: "hard", isLinchpin: true, cyclePhase: "forming", cycleDay: 7, completed: true }], total: 4, done: 3 },
+        subcommands: [
+          {
+            name: "add",
+            description: "Create a new habit (max 6 active, enforced server-side)",
+            usage: "agent-pomodoro habits add \"Exercise\" --phase hard [--linchpin] [--description \"...\"] [--color \"#ff6b6b\"] [--json]",
+            endpoint: "POST /api/habits",
+            parameters: { name: "string (required)", phase: "hard|easy (required)", isLinchpin: "boolean", description: "string", color: "hex color" },
+          },
+          {
+            name: "done",
+            description: "Check in a habit for today (or specific date)",
+            usage: "agent-pomodoro habits done \"Exercise\" [--date YYYY-MM-DD] [--notes \"...\"] [--json]",
+            endpoint: "POST /api/habits/checkin",
+          },
+          {
+            name: "undo",
+            description: "Uncheck a habit for today (or specific date)",
+            usage: "agent-pomodoro habits undo \"Exercise\" [--date YYYY-MM-DD] [--json]",
+            endpoint: "POST /api/habits/uncheckin",
+          },
+          {
+            name: "stats",
+            description: "Completion rates per habit (default 30 days). Denominator adjusts for habit creation date.",
+            usage: "agent-pomodoro habits stats [days] [--json]",
+            endpoint: "GET /api/habits/stats?days=30",
+          },
+          {
+            name: "cycle",
+            description: "21-day cycle status per habit. Auto-advances daily via cron.",
+            usage: "agent-pomodoro habits cycle [--json]",
+            endpoint: "GET /api/habits/cycle",
+          },
+          {
+            name: "archive",
+            description: "Remove habit from active list (soft delete, checkins preserved)",
+            usage: "agent-pomodoro habits archive \"Exercise\" [--json]",
+            endpoint: "POST /api/habits/archive",
+          },
+        ],
+      },
+      {
         name: "config",
         description: "Manage CLI configuration",
         subcommands: [
@@ -1187,6 +1404,7 @@ function cmdHelpLlm() {
       "retro: weekly retrospective with Markdown output — pipe to Obsidian notes",
       "debt: pomodoro debt carries forward missed targets (capped at 2x daily target)",
       "trends: detects regression when completion drops >10pp or sessions/day drops >30%",
+      "habits: Huberman protocol — max 6 active, target 4-5/day (85%), 21-day cycles auto-advance, resolve habits by name",
     ],
   };
 
@@ -1211,6 +1429,13 @@ Usage:
   agent-pomodoro interrupt [--reason "..."]  Interrupt active session
   agent-pomodoro goals               Show goals + progress
   agent-pomodoro goals set --daily 8 --weekly 25  Set goals
+  agent-pomodoro habits              Today's habits + status
+  agent-pomodoro habits add "Exercise" --phase hard [--linchpin]
+  agent-pomodoro habits done "Exercise"  Check in for today
+  agent-pomodoro habits undo "Exercise"  Uncheck
+  agent-pomodoro habits stats [days]     Completion rates
+  agent-pomodoro habits cycle            21-day cycle status
+  agent-pomodoro habits archive "Exercise"  Remove from active
   agent-pomodoro heartbeat           Send activity heartbeat
   agent-pomodoro heartbeat --daemon  Heartbeat every 30s (background)
   agent-pomodoro accountability      Accountability score (default: 7d)
@@ -1295,6 +1520,8 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdTags(args.slice(1));
 } else if (cmd === "goals") {
   await cmdGoals(args.slice(1));
+} else if (cmd === "habits") {
+  await cmdHabits(args.slice(1));
 } else if (cmd === "link-commits") {
   await cmdLinkCommits(args.slice(1));
 } else if (cmd === "rhythm") {

@@ -9,4 +9,10 @@ crons.interval(
   internal.nudges.generateNudges
 );
 
+crons.daily(
+  "advance habit cycles",
+  { hourUTC: 5, minuteUTC: 0 },
+  internal.habits.cycleAdvanceAll
+);
+
 export default crons;

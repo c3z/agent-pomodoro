@@ -650,6 +650,51 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        {/* Habits */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-mono font-bold text-gray-500 uppercase tracking-wider">
+            Habits (Huberman Protocol)
+          </h3>
+          <div className="space-y-2 font-mono text-xs">
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/habits</p>
+              <p className="text-gray-500 mt-1">List active habits (max 6)</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/habits/today</p>
+              <p className="text-gray-500 mt-1">Today's habits + completion status + cycle day</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/habits</p>
+              <p className="text-gray-500 mt-1">Create habit — name, phase (hard/easy), isLinchpin, description, color</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/habits/update</p>
+              <p className="text-gray-500 mt-1">Update habit fields — habitId + any fields to change</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/habits/checkin</p>
+              <p className="text-gray-500 mt-1">Mark habit done — habitId, date (opt), notes (opt)</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/habits/uncheckin</p>
+              <p className="text-gray-500 mt-1">Unmark habit — habitId, date (opt)</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-pomored">POST /api/habits/archive</p>
+              <p className="text-gray-500 mt-1">Soft-delete habit (checkins preserved)</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/habits/stats?days=30</p>
+              <p className="text-gray-500 mt-1">Completion rates per habit</p>
+            </div>
+            <div className="bg-surface rounded-lg p-3">
+              <p className="text-breakgreen">GET /api/habits/cycle</p>
+              <p className="text-gray-500 mt-1">21-day cycle status (forming → testing → established)</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
