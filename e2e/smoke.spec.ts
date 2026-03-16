@@ -43,4 +43,23 @@ test.describe("Smoke tests", () => {
     await page.click("text=Dashboard");
     await expect(page).toHaveURL(/\/$/);
   });
+
+  test("navigation includes Score/Accountability link", async ({ page }) => {
+    await page.goto("/");
+    // Desktop shows "Accountability", mobile shows "Score"
+    const link = page.locator('a[href="/accountability"]');
+    await expect(link).toBeVisible();
+  });
+
+  test("navigation includes Settings/API link", async ({ page }) => {
+    await page.goto("/");
+    // Desktop shows "Settings", mobile shows "API"
+    const link = page.locator('a[href="/settings"]');
+    await expect(link).toBeVisible();
+  });
+
+  test("settings page has API Reference section", async ({ page }) => {
+    await page.goto("/settings");
+    await expect(page.locator("text=API Reference")).toBeVisible();
+  });
 });
