@@ -116,15 +116,91 @@
 
 ---
 
+### Sprint #25 — MCP Server
+
+**Goal:** Native Claude Desktop integration via Model Context Protocol.
+
+| # | Item | Impact | Effort | Details |
+|---|------|--------|--------|---------|
+| 1 | MCP server package | 5 | M | `packages/mcp/` — 8 MCP tools wrapping REST API. `pomodoro_status`, `pomodoro_start`, `pomodoro_stop`, `pomodoro_active`, `pomodoro_stats`, `pomodoro_heartbeat`, `pomodoro_accountability`, `pomodoro_nudges`. |
+| 2 | npm publish + setup docs | 3 | S | `agent-pomodoro-mcp` on npm. Setup instructions in README + agent-onboarding skill. |
+
+---
+
+### Sprint #26 — Conversation-Aware Sessions
+
+**Goal:** Agent auto-manages sessions based on conversation context.
+
+| # | Item | Impact | Effort | Details |
+|---|------|--------|--------|---------|
+| 1 | Auto-start/stop skill rules | 5 | S | `pomodoro-check` skill: mandatory start on conversation begin, auto-complete on end/idle. |
+| 2 | Task auto-capture from conversation | 5 | S | Agent infers task from first user message, calls `POST /api/sessions/task`. |
+| 3 | Context-aware auto-tagging (git observer) | 4 | S | On `apom stop --auto-tag`: inspect `git diff --stat`, generate tags + notes. |
+
+---
+
+### Sprint #27 — Git Commit Correlation
+
+**Goal:** Link pomodoro sessions to git output — measure productivity, not just time.
+
+| # | Item | Impact | Effort | Details |
+|---|------|--------|--------|---------|
+| 1 | `commits` field on sessions | 5 | M | Schema: `commits: v.optional(v.array(v.object({...})))`. `POST /api/sessions/commits`. |
+| 2 | `apom link-commits` CLI | 4 | S | Runs `git log --since/--until` for session window, POSTs commits. |
+| 3 | Dashboard: commits per session | 3 | M | Show commit count in session list + "output per pomodoro" metric. |
+
+---
+
+### Sprint #28 — Focus Rhythm Analysis
+
+**Goal:** Data-driven insights about when developer is most productive.
+
+| # | Item | Impact | Effort | Details |
+|---|------|--------|--------|---------|
+| 1 | `GET /api/stats/rhythm` endpoint | 4 | M | Sessions bucketed by hour-of-day + day-of-week with completion rates. |
+| 2 | `apom rhythm` CLI | 3 | S | Terminal heatmap of focus patterns. |
+| 3 | Agent-readable rhythm data | 4 | S | Agent uses rhythm to recommend optimal session timing. |
+
+---
+
+### Sprint #29 — Weekly Retrospective
+
+**Goal:** AI-generated weekly narrative — not just charts.
+
+| # | Item | Impact | Effort | Details |
+|---|------|--------|--------|---------|
+| 1 | `GET /api/retro` endpoint | 4 | M | Structured retro data: per-day scores, tag breakdown, trends, comparison. |
+| 2 | `apom retro` CLI | 4 | S | Markdown output for Obsidian. Agent generates narrative interpretation. |
+| 3 | Weekly retro skill | 3 | S | `.claude/skills/weekly-retro/SKILL.md` — agent interprets retro data. |
+
+---
+
+### Sprint #30 — Pomodoro Debt + Regression Detection
+
+**Goal:** Psychological discipline tools — debt accumulates, regressions alert.
+
+| # | Item | Impact | Effort | Details |
+|---|------|--------|--------|---------|
+| 1 | `GET /api/stats/debt` endpoint | 4 | S | Missed pomodoros carry forward. "Today's target: 9 (6 base + 3 debt)." |
+| 2 | `GET /api/stats/trends` endpoint | 4 | S | 7-day rolling vs previous 7-day for all metrics. Regression detection. |
+| 3 | `apom debt` + `apom trends` CLI | 3 | S | Agent uses these for escalating nudge severity. |
+
+---
+
 ## Future / Stretch
 
 | Idea | Impact | Effort | Notes |
 |------|--------|--------|-------|
-| Team accountability (multi-user) | 5 | L | `organization` table, team score leaderboard. "Najsłabsze ogniwo." |
-| Task management integration | 5 | L | Built-in task list lub Linear/Todoist integracja. |
-| Webhook on session events | 4 | L | Convex trigger → POST webhook na completion. Push do external systems. |
-| Dark/light theme toggle | 2 | S | CSS vars override, toggle w Settings. |
-| Timer ARIA accessibility | 2 | S | Labels na progress ring, mode selector, controls. |
+| Focus Quality Score | 4 | M | Beyond binary complete/interrupt — measure focus intensity |
+| Token tracking per session | 5 | M | Unique to AI coding — cost/value per pomodoro |
+| Obsidian Auto-Sync | 4 | S | Daily note pipeline — automatic, not manual |
+| Multi-repo awareness | 3 | S | Per-project focus analytics |
+| Focus Mode OS integration | 4 | S | macOS DND on timer start/stop |
+| Team accountability (multi-user) | 5 | L | Pod leaderboard. "Najsłabsze ogniwo." |
+| Session replay / activity log | 4 | L | Structured log of what happened during session |
+| Webhook on session events | 4 | L | Push to external systems on completion |
+| Dark/light theme toggle | 2 | S | CSS vars override, toggle w Settings |
+| Timer ARIA accessibility | 2 | S | Labels na progress ring, mode selector, controls |
 
 ---
 
