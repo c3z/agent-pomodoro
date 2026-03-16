@@ -23,6 +23,26 @@ export const start = mutation({
     if (args.durationMinutes <= 0 || args.durationMinutes > 120) {
       throw new Error("Duration must be between 1 and 120 minutes");
     }
+
+    // Idempotency guard: check for existing active session
+    const recent = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .take(10);
+    const active = recent.find((s) => !s.completed && !s.interrupted);
+
+    if (active) {
+      if (active.type === args.type) {
+        // Same type — idempotent, return existing session
+        return active._id;
+      }
+      // Different type — conflict
+      throw new Error(
+        `CONFLICT: Active ${active.type} session already running (${active._id})`
+      );
+    }
+
     return await ctx.db.insert("pomodoroSessions", {
       userId: args.userId,
       type: args.type,
