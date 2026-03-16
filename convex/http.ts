@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/sessions/commits", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
+for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/stats/rhythm", "/api/stats/debt", "/api/stats/trends", "/api/retro", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/sessions/commits", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -643,6 +643,66 @@ http.route({
     }
 
     return jsonResponse({ ok: true });
+  }),
+});
+
+// GET /api/stats/rhythm?days=30 — focus rhythm analysis (by hour/day)
+http.route({
+  path: "/api/stats/rhythm",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const url = new URL(request.url);
+    const days = parseInt(url.searchParams.get("days") ?? "30", 10);
+    const sinceDaysAgo = isNaN(days) || days < 1 ? 30 : Math.min(days, 365);
+    const rhythm = await ctx.runQuery(api.sessions.focusRhythm, {
+      userId: auth.userId,
+      sinceDaysAgo,
+    });
+    return jsonResponse(rhythm);
+  }),
+});
+
+// GET /api/retro — weekly retrospective
+http.route({
+  path: "/api/retro",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const retro = await ctx.runQuery(api.sessions.weeklyRetro, {
+      userId: auth.userId,
+    });
+    return jsonResponse(retro);
+  }),
+});
+
+// GET /api/stats/debt — pomodoro debt (daily target vs completed, carry-forward)
+http.route({
+  path: "/api/stats/debt",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const debt = await ctx.runQuery(api.sessions.pomodoroDebt, {
+      userId: auth.userId,
+    });
+    return jsonResponse(debt);
+  }),
+});
+
+// GET /api/stats/trends — 7d vs previous 7d trend comparison
+http.route({
+  path: "/api/stats/trends",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    const trends = await ctx.runQuery(api.sessions.trends, {
+      userId: auth.userId,
+    });
+    return jsonResponse(trends);
   }),
 });
 

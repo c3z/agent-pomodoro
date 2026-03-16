@@ -461,6 +461,368 @@ export const tagAnalytics = query({
   },
 });
 
+// ── Sprint #28: Focus Rhythm Analysis ────────────────────────────────
+
+export const focusRhythm = query({
+  args: {
+    userId: v.string(),
+    sinceDaysAgo: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const since = Math.min(args.sinceDaysAgo ?? 30, 365);
+    const sinceTs = Date.now() - since * 24 * 60 * 60 * 1000;
+
+    const sessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", args.userId).gte("startedAt", sinceTs)
+      )
+      .collect();
+
+    const workSessions = sessions.filter((s) => s.type === "work");
+
+    // Bucket by hour-of-day (0-23)
+    const byHour: Array<{ hour: number; total: number; completed: number; interrupted: number; completionRate: number }> = [];
+    for (let h = 0; h < 24; h++) {
+      byHour.push({ hour: h, total: 0, completed: 0, interrupted: 0, completionRate: 0 });
+    }
+
+    // Bucket by day-of-week (0=Sunday .. 6=Saturday)
+    const byDayOfWeek: Array<{ day: number; dayName: string; total: number; completed: number; interrupted: number; completionRate: number }> = [];
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    for (let d = 0; d < 7; d++) {
+      byDayOfWeek.push({ day: d, dayName: dayNames[d], total: 0, completed: 0, interrupted: 0, completionRate: 0 });
+    }
+
+    for (const s of workSessions) {
+      const dt = new Date(s.startedAt);
+      const hour = dt.getHours();
+      const dow = dt.getDay();
+
+      byHour[hour].total++;
+      byDayOfWeek[dow].total++;
+
+      if (s.completed) {
+        byHour[hour].completed++;
+        byDayOfWeek[dow].completed++;
+      }
+      if (s.interrupted) {
+        byHour[hour].interrupted++;
+        byDayOfWeek[dow].interrupted++;
+      }
+    }
+
+    // Calculate completion rates
+    for (const b of byHour) {
+      b.completionRate = b.total > 0 ? Math.round((b.completed / b.total) * 100) : 0;
+    }
+    for (const b of byDayOfWeek) {
+      b.completionRate = b.total > 0 ? Math.round((b.completed / b.total) * 100) : 0;
+    }
+
+    // Find best/worst (only consider buckets with at least 1 session)
+    const activeHours = byHour.filter((b) => b.total > 0);
+    const activeDays = byDayOfWeek.filter((b) => b.total > 0);
+
+    const bestHour = activeHours.length > 0
+      ? activeHours.reduce((a, b) => a.completionRate > b.completionRate ? a : b).hour
+      : null;
+    const worstHour = activeHours.length > 0
+      ? activeHours.reduce((a, b) => a.completionRate < b.completionRate ? a : b).hour
+      : null;
+    const bestDay = activeDays.length > 0
+      ? activeDays.reduce((a, b) => a.completionRate > b.completionRate ? a : b).day
+      : null;
+    const worstDay = activeDays.length > 0
+      ? activeDays.reduce((a, b) => a.completionRate < b.completionRate ? a : b).day
+      : null;
+
+    return {
+      period: `${since}d`,
+      totalSessions: workSessions.length,
+      byHour,
+      byDayOfWeek,
+      bestHour,
+      worstHour,
+      bestDay,
+      worstDay,
+      bestDayName: bestDay !== null ? dayNames[bestDay] : null,
+      worstDayName: worstDay !== null ? dayNames[worstDay] : null,
+    };
+  },
+});
+
+// ── Sprint #29: Weekly Retrospective ─────────────────────────────────
+
+export const weeklyRetro = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000;
+
+    // Fetch last 14 days of sessions
+    const allSessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", args.userId).gte("startedAt", fourteenDaysAgo)
+      )
+      .collect();
+
+    const workSessions = allSessions.filter((s) => s.type === "work");
+    const thisWeek = workSessions.filter((s) => s.startedAt >= sevenDaysAgo);
+    const prevWeek = workSessions.filter((s) => s.startedAt < sevenDaysAgo);
+
+    // Per-day breakdown for this week
+    const perDay: Array<{
+      date: string;
+      sessions: number;
+      completed: number;
+      interrupted: number;
+      focusMinutes: number;
+      tags: string[];
+    }> = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(now - i * 24 * 60 * 60 * 1000);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+
+      const daySessions = thisWeek.filter(
+        (s) => s.startedAt >= dayStart.getTime() && s.startedAt < dayEnd.getTime()
+      );
+      const completed = daySessions.filter((s) => s.completed);
+      const interrupted = daySessions.filter((s) => s.interrupted);
+      const focusMinutes = completed.reduce((sum, s) => sum + s.durationMinutes, 0);
+
+      const tagSet = new Set<string>();
+      for (const s of completed) {
+        if (s.tags) s.tags.forEach((t) => tagSet.add(t));
+      }
+
+      perDay.push({
+        date: dayStart.toISOString().slice(0, 10),
+        sessions: daySessions.length,
+        completed: completed.length,
+        interrupted: interrupted.length,
+        focusMinutes,
+        tags: Array.from(tagSet),
+      });
+    }
+
+    // Top tags for the week
+    const tagMap = new Map<string, number>();
+    for (const s of thisWeek.filter((s) => s.completed)) {
+      if (s.tags) {
+        for (const tag of s.tags) {
+          tagMap.set(tag, (tagMap.get(tag) ?? 0) + 1);
+        }
+      }
+    }
+    const topTags = Array.from(tagMap.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Compare with previous week
+    const thisCompleted = thisWeek.filter((s) => s.completed);
+    const prevCompleted = prevWeek.filter((s) => s.completed);
+    const thisFocusMin = thisCompleted.reduce((sum, s) => sum + s.durationMinutes, 0);
+    const prevFocusMin = prevCompleted.reduce((sum, s) => sum + s.durationMinutes, 0);
+    const thisRate = thisWeek.length > 0 ? Math.round((thisCompleted.length / thisWeek.length) * 100) : 0;
+    const prevRate = prevWeek.length > 0 ? Math.round((prevCompleted.length / prevWeek.length) * 100) : 0;
+
+    return {
+      thisWeek: {
+        sessions: thisWeek.length,
+        completed: thisCompleted.length,
+        interrupted: thisWeek.filter((s) => s.interrupted).length,
+        completionRate: thisRate,
+        focusMinutes: thisFocusMin,
+        focusHours: Math.round((thisFocusMin / 60) * 10) / 10,
+        avgSessionsPerDay: Math.round((thisWeek.length / 7) * 10) / 10,
+      },
+      previousWeek: {
+        sessions: prevWeek.length,
+        completed: prevCompleted.length,
+        interrupted: prevWeek.filter((s) => s.interrupted).length,
+        completionRate: prevRate,
+        focusMinutes: prevFocusMin,
+        focusHours: Math.round((prevFocusMin / 60) * 10) / 10,
+        avgSessionsPerDay: Math.round((prevWeek.length / 7) * 10) / 10,
+      },
+      deltas: {
+        sessions: thisWeek.length - prevWeek.length,
+        completed: thisCompleted.length - prevCompleted.length,
+        completionRate: thisRate - prevRate,
+        focusMinutes: thisFocusMin - prevFocusMin,
+        focusHours: Math.round(((thisFocusMin - prevFocusMin) / 60) * 10) / 10,
+      },
+      perDay,
+      topTags,
+    };
+  },
+});
+
+// ── Sprint #30: Pomodoro Debt + Regression Detection ─────────────────
+
+export const pomodoroDebt = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+
+    // Get daily target from userGoals
+    const goal = await ctx.db
+      .query("userGoals")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .first();
+    const dailyTarget = goal?.dailyPomodoros ?? 6;
+
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+
+    const sessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", args.userId).gte("startedAt", sevenDaysAgo)
+      )
+      .collect();
+
+    const workCompleted = sessions.filter((s) => s.type === "work" && s.completed);
+
+    // Build per-day history (7 days ago through today = 8 slots, but last 7 full days + today)
+    const weekHistory: Array<{
+      date: string;
+      target: number;
+      completed: number;
+      delta: number;
+    }> = [];
+
+    let debtCarried = 0;
+
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(now - i * 24 * 60 * 60 * 1000);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+
+      const dayCompleted = workCompleted.filter(
+        (s) => s.startedAt >= dayStart.getTime() && s.startedAt < dayEnd.getTime()
+      ).length;
+
+      const isToday = i === 0;
+      // Only accumulate debt from past days (not today — it's still in progress)
+      if (!isToday) {
+        const deficit = dailyTarget - dayCompleted;
+        if (deficit > 0) {
+          debtCarried += deficit;
+        }
+      }
+
+      weekHistory.push({
+        date: dayStart.toISOString().slice(0, 10),
+        target: dailyTarget,
+        completed: dayCompleted,
+        delta: dayCompleted - dailyTarget,
+      });
+    }
+
+    // Today's stats
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayCompleted = workCompleted.filter(
+      (s) => s.startedAt >= todayStart.getTime()
+    ).length;
+
+    // Today's effective target = base + carried debt (capped at 2x base)
+    const todayTarget = Math.min(dailyTarget + debtCarried, dailyTarget * 2);
+
+    return {
+      dailyTarget,
+      todayCompleted,
+      todayTarget,
+      debtCarried,
+      todayRemaining: Math.max(0, todayTarget - todayCompleted),
+      weekHistory,
+    };
+  },
+});
+
+export const trends = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000;
+
+    const allSessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", args.userId).gte("startedAt", fourteenDaysAgo)
+      )
+      .collect();
+
+    const workSessions = allSessions.filter((s) => s.type === "work");
+    const current7d = workSessions.filter((s) => s.startedAt >= sevenDaysAgo);
+    const previous7d = workSessions.filter((s) => s.startedAt < sevenDaysAgo);
+
+    const curCompleted = current7d.filter((s) => s.completed);
+    const prevCompleted = previous7d.filter((s) => s.completed);
+    const curFocusMin = curCompleted.reduce((sum, s) => sum + s.durationMinutes, 0);
+    const prevFocusMin = prevCompleted.reduce((sum, s) => sum + s.durationMinutes, 0);
+    const curRate = current7d.length > 0 ? Math.round((curCompleted.length / current7d.length) * 100) : 0;
+    const prevRate = previous7d.length > 0 ? Math.round((prevCompleted.length / previous7d.length) * 100) : 0;
+    const curAvgPerDay = Math.round((current7d.length / 7) * 10) / 10;
+    const prevAvgPerDay = Math.round((previous7d.length / 7) * 10) / 10;
+    const curFocusHours = Math.round((curFocusMin / 60) * 10) / 10;
+    const prevFocusHours = Math.round((prevFocusMin / 60) * 10) / 10;
+
+    // Accountability score approximation (completed / total)
+    const curAccountability = current7d.length > 0
+      ? Math.round((curCompleted.length / current7d.length) * 100) : 0;
+    const prevAccountability = previous7d.length > 0
+      ? Math.round((prevCompleted.length / previous7d.length) * 100) : 0;
+
+    // Detect regression: completion rate dropped by >10pp OR sessions/day dropped by >30%
+    const rateDelta = curRate - prevRate;
+    const sessionsDelta = curAvgPerDay - prevAvgPerDay;
+    const regression =
+      (prevRate > 0 && rateDelta < -10) ||
+      (prevAvgPerDay > 0 && sessionsDelta / prevAvgPerDay < -0.3);
+
+    return {
+      current7d: {
+        completionRate: curRate,
+        avgSessionsPerDay: curAvgPerDay,
+        totalFocusHours: curFocusHours,
+        totalSessions: current7d.length,
+        completedSessions: curCompleted.length,
+        accountabilityScore: curAccountability,
+      },
+      previous7d: {
+        completionRate: prevRate,
+        avgSessionsPerDay: prevAvgPerDay,
+        totalFocusHours: prevFocusHours,
+        totalSessions: previous7d.length,
+        completedSessions: prevCompleted.length,
+        accountabilityScore: prevAccountability,
+      },
+      deltas: {
+        completionRate: rateDelta,
+        avgSessionsPerDay: Math.round(sessionsDelta * 10) / 10,
+        totalFocusHours: Math.round((curFocusHours - prevFocusHours) * 10) / 10,
+        totalSessions: current7d.length - previous7d.length,
+      },
+      regression,
+    };
+  },
+});
+
 /**
  * @deprecated Use GET /api/me with API key auth instead.
  * This scans the entire DB and is a privacy concern — returns whatever userId

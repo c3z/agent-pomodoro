@@ -680,6 +680,184 @@ async function cmdLinkCommits(args) {
   }
 }
 
+async function cmdRhythm(args) {
+  const daysArg = args.find((a) => /^\d+d?$/.test(a));
+  const days = daysArg ? parseInt(daysArg) : 30;
+  const data = await apiCall(`/api/stats/rhythm?days=${days}`);
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  console.log(`Focus Rhythm (${data.period}, ${data.totalSessions} sessions)\n`);
+
+  // Best/worst summary
+  if (data.bestHour !== null) {
+    console.log(`Best hour:  ${String(data.bestHour).padStart(2, "0")}:00 (${data.byHour[data.bestHour].completionRate}% completion, ${data.byHour[data.bestHour].total} sessions)`);
+  }
+  if (data.worstHour !== null) {
+    console.log(`Worst hour: ${String(data.worstHour).padStart(2, "0")}:00 (${data.byHour[data.worstHour].completionRate}% completion, ${data.byHour[data.worstHour].total} sessions)`);
+  }
+  if (data.bestDayName) {
+    console.log(`Best day:   ${data.bestDayName} (${data.byDayOfWeek[data.bestDay].completionRate}% completion)`);
+  }
+  if (data.worstDayName) {
+    console.log(`Worst day:  ${data.worstDayName} (${data.byDayOfWeek[data.worstDay].completionRate}% completion)`);
+  }
+
+  // Hour heatmap (6:00-22:00)
+  console.log("\nHourly heatmap (6:00-22:00):");
+  const maxTotal = Math.max(...data.byHour.filter((_, i) => i >= 6 && i <= 22).map((h) => h.total), 1);
+  for (let h = 6; h <= 22; h++) {
+    const b = data.byHour[h];
+    const barLen = Math.round((b.total / maxTotal) * 20);
+    const bar = "\u2588".repeat(barLen) + "\u2591".repeat(20 - barLen);
+    const rate = b.total > 0 ? `${b.completionRate}%` : "  -";
+    console.log(`  ${String(h).padStart(2, "0")}:00  ${bar}  ${String(b.total).padStart(3)} sessions  ${rate.padStart(4)}`);
+  }
+
+  // Day of week breakdown
+  console.log("\nDay of week:");
+  for (const d of data.byDayOfWeek) {
+    const barLen = d.total > 0 ? Math.max(1, Math.round((d.total / maxTotal) * 15)) : 0;
+    const bar = "\u2588".repeat(barLen);
+    const rate = d.total > 0 ? `${d.completionRate}%` : "-";
+    console.log(`  ${d.dayName.padEnd(10)} ${String(d.total).padStart(3)} sessions  ${rate.padStart(4)}  ${bar}`);
+  }
+}
+
+async function cmdRetro(args) {
+  const data = await apiCall("/api/retro");
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  const lines = [];
+
+  // Header
+  lines.push("# Weekly Retrospective");
+  lines.push("");
+
+  // Summary comparison
+  const tw = data.thisWeek;
+  const pw = data.previousWeek;
+  const d = data.deltas;
+
+  lines.push("## This Week vs Previous");
+  lines.push("");
+  lines.push("| Metric | This week | Previous | Delta |");
+  lines.push("|--------|-----------|----------|-------|");
+  lines.push(`| Sessions | ${tw.completed}/${tw.sessions} | ${pw.completed}/${pw.sessions} | ${d.sessions >= 0 ? "+" : ""}${d.sessions} |`);
+  lines.push(`| Completion | ${tw.completionRate}% | ${pw.completionRate}% | ${d.completionRate >= 0 ? "+" : ""}${d.completionRate}pp |`);
+  lines.push(`| Focus | ${tw.focusHours}h | ${pw.focusHours}h | ${d.focusHours >= 0 ? "+" : ""}${d.focusHours}h |`);
+  lines.push(`| Avg/day | ${tw.avgSessionsPerDay} | ${pw.avgSessionsPerDay} | - |`);
+  if (tw.interrupted > 0) {
+    lines.push(`| Interrupted | ${tw.interrupted} | ${pw.interrupted} | ${tw.interrupted - pw.interrupted >= 0 ? "+" : ""}${tw.interrupted - pw.interrupted} |`);
+  }
+  lines.push("");
+
+  // Per-day table
+  lines.push("## Daily Breakdown");
+  lines.push("");
+  lines.push("| Date | Done | Interrupted | Focus | Tags |");
+  lines.push("|------|------|-------------|-------|------|");
+  for (const day of data.perDay) {
+    const tags = day.tags.length > 0 ? day.tags.join(", ") : "-";
+    const focusH = Math.round((day.focusMinutes / 60) * 10) / 10;
+    lines.push(`| ${day.date} | ${day.completed}/${day.sessions} | ${day.interrupted} | ${focusH}h | ${tags} |`);
+  }
+  lines.push("");
+
+  // Top tags
+  if (data.topTags.length > 0) {
+    lines.push("## Top Tags");
+    lines.push("");
+    for (const t of data.topTags) {
+      lines.push(`- **${t.tag}**: ${t.count} sessions`);
+    }
+    lines.push("");
+  }
+
+  // Trend indicators
+  lines.push("## Trends");
+  lines.push("");
+  if (d.completionRate > 5) {
+    lines.push(`- Completion rate IMPROVING (+${d.completionRate}pp)`);
+  } else if (d.completionRate < -5) {
+    lines.push(`- Completion rate DECLINING (${d.completionRate}pp)`);
+  } else {
+    lines.push("- Completion rate STABLE");
+  }
+  if (d.focusHours > 0) {
+    lines.push(`- Focus time UP (+${d.focusHours}h)`);
+  } else if (d.focusHours < 0) {
+    lines.push(`- Focus time DOWN (${d.focusHours}h)`);
+  }
+
+  console.log(lines.join("\n"));
+}
+
+async function cmdDebt(args) {
+  const data = await apiCall("/api/stats/debt");
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  console.log(`Daily target: ${data.dailyTarget} pomodoros`);
+  console.log(`Today: ${data.todayCompleted}/${data.todayTarget} (${data.dailyTarget} base${data.debtCarried > 0 ? ` + ${data.debtCarried} debt` : ""})`);
+  if (data.todayRemaining > 0) {
+    console.log(`Remaining today: ${data.todayRemaining}`);
+  } else {
+    console.log("Today's target met!");
+  }
+
+  if (data.debtCarried > 0) {
+    console.log(`\nDebt carried from past 6 days: ${data.debtCarried} pomodoros`);
+  }
+
+  console.log("\nWeek history:");
+  for (const day of data.weekHistory) {
+    const marker = day.delta >= 0 ? "+" : "";
+    const status = day.delta >= 0 ? "OK" : "DEFICIT";
+    console.log(`  ${day.date}  ${day.completed}/${day.target}  (${marker}${day.delta})  ${status}`);
+  }
+}
+
+async function cmdTrends(args) {
+  const data = await apiCall("/api/stats/trends");
+
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  const cur = data.current7d;
+  const prev = data.previous7d;
+  const d = data.deltas;
+
+  function trend(delta, suffix = "") {
+    if (delta > 0) return `IMPROVING (+${delta}${suffix})`;
+    if (delta < 0) return `DECLINING (${delta}${suffix})`;
+    return "STABLE";
+  }
+
+  console.log("7-Day Trends (current vs previous)\n");
+  console.log(`Completion:   ${prev.completionRate}% -> ${cur.completionRate}%  ${trend(d.completionRate, "pp")}`);
+  console.log(`Sessions/day: ${prev.avgSessionsPerDay} -> ${cur.avgSessionsPerDay}  ${trend(d.avgSessionsPerDay)}`);
+  console.log(`Focus hours:  ${prev.totalFocusHours}h -> ${cur.totalFocusHours}h  ${trend(d.totalFocusHours, "h")}`);
+  console.log(`Total:        ${prev.totalSessions} -> ${cur.totalSessions} sessions  ${trend(d.totalSessions)}`);
+
+  if (data.regression) {
+    console.log("\n*** REGRESSION DETECTED ***");
+    console.log("Performance has significantly declined compared to previous week.");
+  }
+}
+
 function cmdConfig(args) {
   const subCmd = args[0];
 
@@ -720,7 +898,7 @@ function cmdConfig(args) {
 function cmdHelpLlm() {
   const schema = {
     name: "agent-pomodoro",
-    version: "0.5.0",
+    version: "0.6.0",
     description: "CLI for AI agents to query and control Agent Pomodoro focus sessions",
     base_url: getBaseUrl(),
     auth: {
@@ -937,6 +1115,64 @@ function cmdHelpLlm() {
         },
       },
       {
+        name: "rhythm",
+        description: "Focus rhythm analysis: sessions bucketed by hour-of-day and day-of-week with completion rates. Shows best/worst hours and days, text heatmap.",
+        usage: "agent-pomodoro rhythm [days] [--json]",
+        endpoint: "GET /api/stats/rhythm?days=N",
+        parameters: { days: { type: "integer", default: 30, max: 365 } },
+        response_example: {
+          period: "30d",
+          totalSessions: 45,
+          byHour: [{ hour: 9, total: 8, completed: 7, interrupted: 1, completionRate: 88 }],
+          byDayOfWeek: [{ day: 1, dayName: "Monday", total: 10, completed: 8, interrupted: 2, completionRate: 80 }],
+          bestHour: 9,
+          worstHour: 16,
+          bestDay: 1,
+          worstDay: 5,
+          bestDayName: "Monday",
+          worstDayName: "Friday",
+        },
+      },
+      {
+        name: "retro",
+        description: "Weekly retrospective: per-day breakdown, tag summary, comparison with previous week. Markdown output suitable for Obsidian.",
+        usage: "agent-pomodoro retro [--json]",
+        endpoint: "GET /api/retro",
+        response_example: {
+          thisWeek: { sessions: 20, completed: 16, interrupted: 4, completionRate: 80, focusMinutes: 400, focusHours: 6.7, avgSessionsPerDay: 2.9 },
+          previousWeek: { sessions: 15, completed: 12, interrupted: 3, completionRate: 80, focusMinutes: 300, focusHours: 5.0, avgSessionsPerDay: 2.1 },
+          deltas: { sessions: 5, completed: 4, completionRate: 0, focusMinutes: 100, focusHours: 1.7 },
+          perDay: [{ date: "2026-03-10", sessions: 3, completed: 2, interrupted: 1, focusMinutes: 50, tags: ["code"] }],
+          topTags: [{ tag: "code", count: 10 }],
+        },
+      },
+      {
+        name: "debt",
+        description: "Pomodoro debt tracker: daily target vs completed, accumulated deficit from past days carried forward. Today's effective target = base + debt (capped at 2x).",
+        usage: "agent-pomodoro debt [--json]",
+        endpoint: "GET /api/stats/debt",
+        response_example: {
+          dailyTarget: 6,
+          todayCompleted: 3,
+          todayTarget: 9,
+          debtCarried: 3,
+          todayRemaining: 6,
+          weekHistory: [{ date: "2026-03-10", target: 6, completed: 4, delta: -2 }],
+        },
+      },
+      {
+        name: "trends",
+        description: "7-day trend comparison: current week vs previous week. Detects regression (>10pp completion drop or >30% session drop).",
+        usage: "agent-pomodoro trends [--json]",
+        endpoint: "GET /api/stats/trends",
+        response_example: {
+          current7d: { completionRate: 61, avgSessionsPerDay: 3.1, totalFocusHours: 6.5, totalSessions: 22, completedSessions: 13, accountabilityScore: 61 },
+          previous7d: { completionRate: 82, avgSessionsPerDay: 5.2, totalFocusHours: 10.8, totalSessions: 36, completedSessions: 30, accountabilityScore: 82 },
+          deltas: { completionRate: -21, avgSessionsPerDay: -2.1, totalFocusHours: -4.3, totalSessions: -14 },
+          regression: true,
+        },
+      },
+      {
         name: "config",
         description: "Manage CLI configuration",
         subcommands: [
@@ -956,6 +1192,10 @@ function cmdHelpLlm() {
       "Use daily-summary for Obsidian: agent-pomodoro daily-summary --obsidian --output ~/notes/daily.md",
       "Pre-tag sessions at start: agent-pomodoro start work --tags 'code,deep-work'",
       "accountability --days 7 now includes dailyScores with per-day score breakdown",
+      "rhythm: discover your best focus hours and days — use to plan deep work windows",
+      "retro: weekly retrospective with Markdown output — pipe to Obsidian notes",
+      "debt: pomodoro debt carries forward missed targets (capped at 2x daily target)",
+      "trends: detects regression when completion drops >10pp or sessions/day drops >30%",
     ],
   };
 
@@ -988,6 +1228,10 @@ Usage:
   agent-pomodoro link-commits        Link git commits to active/last session
   agent-pomodoro link-commits --session <id>  Link to specific session
   agent-pomodoro tags [days]         Tag breakdown (default: 30 days)
+  agent-pomodoro rhythm [days]       Focus rhythm analysis (default: 30d)
+  agent-pomodoro retro               Weekly retrospective (Markdown)
+  agent-pomodoro debt                Pomodoro debt (target vs completed)
+  agent-pomodoro trends              7-day trend comparison + regression
   agent-pomodoro daily-summary       Today's summary (Markdown)
   agent-pomodoro daily-summary --date 2025-01-15  Specific date
   agent-pomodoro daily-summary --obsidian  Obsidian daily note format
@@ -1062,6 +1306,14 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   await cmdGoals(args.slice(1));
 } else if (cmd === "link-commits") {
   await cmdLinkCommits(args.slice(1));
+} else if (cmd === "rhythm") {
+  await cmdRhythm(args.slice(1));
+} else if (cmd === "retro") {
+  await cmdRetro(args.slice(1));
+} else if (cmd === "debt") {
+  await cmdDebt(args.slice(1));
+} else if (cmd === "trends") {
+  await cmdTrends(args.slice(1));
 } else if (cmd === "config") {
   cmdConfig(args.slice(1));
 } else {
