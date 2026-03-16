@@ -1,72 +1,50 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #32 — Habit Tracker CRUD + Schema (in progress)
-## Consolidated Score: 8.6/10 (Sprint #16)
+## Current Sprint: #39 (in progress)
+## Consolidated Score: 7.4/10 → target 8.5+
 ## Phase 5: Habit Tracker Module (Huberman Protocol)
 
-## Reviewer Weight (Phase 5)
+## Sprint History (Phase 5)
 
-| Reviewer | Weight | Role |
-|----------|--------|------|
-| Agent Access | **50%** | Can AI agent create/check/report habits via CLI/MCP? |
-| End-user | **30%** | Is habit UI intuitive? Huberman rules enforced? |
-| Performance | **10%** | New queries, new tables — impact on load time? |
-| Neuroscience Fidelity | **10%** | Does implementation respect Huberman protocol? (max 6, 85%, phases, cycles) |
+| Sprint | Focus | Key Deliverable |
+|--------|-------|-----------------|
+| #32 | Backend CRUD | Schema + mutations + 10 HTTP endpoints + CLI |
+| #33 | Agent surface | 3 MCP tools + partial name match + habit-check skill |
+| #34 | UI | /habits page + nav + dashboard widget |
+| #35 | Neuro fidelity | 2-day bins + checkin calendar + stats UI |
+| #36 | Correlation | Habit × Pomodoro cross-correlation |
+| #37 | Testing | 6 E2E tests + route registration fix |
+| #38 | Docs | pomodoro-check + agent-onboarding skill updates |
+| #39 | Integration | Weekly retro habit enrichment |
 
-## Sprint #32 Progress
+## Surface Area
 
-Branch: `feature/habit-tracker`
+| Metric | Before | After |
+|--------|--------|-------|
+| Convex tables | 5 | **7** (+habits, habitCheckins) |
+| HTTP endpoints | 33 | **44** |
+| MCP tools | 10 | **13** |
+| CLI commands | 23 | **39** |
+| E2E tests | 63 | **69** |
+| Routes | 6 | **7** (/habits) |
+| Skills | 7 | **8** (habit-check) |
 
-### Done
-- [x] Schema: `habits` + `habitCheckins` tables in `convex/schema.ts`
-- [x] `convex/habits.ts`: full CRUD (create, update, archive, list) + checkin/uncheckin + dailyStatus + habitStats + cycleStatus + cycleAdvance
-- [x] HTTP endpoints: 8 new endpoints (`/api/habits`, `/api/habits/today`, `/api/habits/checkin`, `/api/habits/uncheckin`, `/api/habits/archive`, `/api/habits/stats`, `/api/habits/cycle`)
-- [x] CLI: `apom habits` (status), `add`, `done`, `undo`, `archive`, `stats`, `cycle` — with name resolution
-- [x] Fix: `convex/tsconfig.json` missing `noEmit: true` (root cause of stale .js files)
-- [x] Typecheck passes
-- [x] Build passes
-- [x] 63/63 E2E tests pass
-
-### Remaining (Sprint #32)
-- [ ] Security audit for new habit endpoints
-- [ ] Cleanup application layout (habits nav link, consistent API docs)
-
-### TODO (Next Sprints per HABIT-TRACKER-ROADMAP.md)
-- Sprint #33: Checkin system + Daily status (MCP tools)
-- Sprint #34: UI — Habit tracker page + components
-- Sprint #35: 21-day cycles + stats visualization
-- Sprint #36: Agent integration + cross-correlation
-- Sprint #37: Polish + full audit
-
-## Huberman Protocol Enforcement (implemented)
+## Huberman Protocol Scorecard
 
 | Rule | Status |
 |------|--------|
-| Max 6 active habits | ✅ Server-side enforced in `create` mutation |
-| Phase (hard/easy) per habit | ✅ Required field |
-| Linchpin flag | ✅ Boolean on habit |
-| 21-day cycle (forming → testing → established) | ✅ Auto-transition via `cycleAdvance` |
-| Date as YYYY-MM-DD string | ✅ Per-day checkin, not per-moment |
-| No streak counter | ✅ Shows % completion rate instead |
-
-## Roadmap
-
-See `docs/HABIT-TRACKER-ROADMAP.md` for full sprint plan.
-See `docs/ROADMAP.md` for original pomodoro roadmap.
-
-## Completed — Phase 4: v1.0 Polish & Agent Control Loop
-
-### Sprints #16-#31 ✅
-Timer persistence, active session endpoint, idempotency, settings personalization, nav indicators, agent proactive loop, server-side nudges, data visualization, goals, interruption tracking, break enforcement, Obsidian integration, MCP server, conversation-aware sessions, git commit correlation, focus rhythm, weekly retro, pomodoro debt, regression detection, quality gate (security fixes, 63 E2E tests).
-
-**Consolidated Score: 8.6/10**
-
-## Completed — Phase 3: Close the Loop (Sprints #14-#15) ✅
-## Completed — Phase 2: Agent Platform (Sprints #9-#13) ✅
-## Completed — Phase 1: App Polish (Sprints #1-#8) ✅
+| Max 6 active | ✅ server-enforced |
+| 85% target (4-5/6) | ✅ API + CLI + UI |
+| No compensation | ✅ by design |
+| 21-day cycles | ✅ auto-advance cron |
+| 2-day bins | ✅ in stats |
+| No streak counter | ✅ clean |
+| Linchpin habits | ✅ stored + surfaced |
+| Cross-correlation | ✅ habit × pomodoro impact |
+| Day phases | ⚠️ stored, not time-enforced |
+| Limbic friction | ❌ deferred |
 
 ## Deployment
 - **Staging:** `npm run build && npx vercel --yes`
 - **Production:** `npx vercel --prod --yes` — REQUIRES c3z APPROVAL
 - **Convex prod:** `npx convex deploy --yes` (efficient-wolf-51)
-- **npm:** `cd packages/apom && npm publish --access public` (requires OTP)
