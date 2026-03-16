@@ -32,4 +32,13 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_hash", ["keyHash"]),
+
+  workActivity: defineTable({
+    userId: v.string(),
+    source: v.string(),
+    windowStart: v.number(),
+    timestamp: v.number(),
+    hadActivePomodoro: v.boolean(),
+  })
+    .index("by_user_window", ["userId", "windowStart"]),
 });

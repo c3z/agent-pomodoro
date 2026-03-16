@@ -280,6 +280,46 @@ export const activeSession = query({
   },
 });
 
+export const accountabilityToday = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    await verifyUserId(ctx, args.userId);
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startTs = startOfDay.getTime();
+
+    const todaySessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", args.userId).gte("startedAt", startTs)
+      )
+      .order("asc")
+      .collect();
+
+    // 7 daily completed-work-session counts (index 0 = 7 days ago, 6 = yesterday)
+    const sevenDaysAgo = startTs - 7 * 24 * 60 * 60 * 1000;
+    const weekSessions = await ctx.db
+      .query("pomodoroSessions")
+      .withIndex("by_user_date", (q) =>
+        q.eq("userId", args.userId).gte("startedAt", sevenDaysAgo)
+      )
+      .order("asc")
+      .collect();
+
+    const dailyCounts: number[] = Array(7).fill(0);
+    for (const s of weekSessions) {
+      if (s.type !== "work" || !s.completed) continue;
+      if (s.startedAt >= startTs) continue;
+      const dayIndex = Math.floor(
+        (s.startedAt - sevenDaysAgo) / (24 * 60 * 60 * 1000)
+      );
+      if (dayIndex >= 0 && dayIndex < 7) dailyCounts[dayIndex]++;
+    }
+
+    return { todaySessions, dailyCounts };
+  },
+});
+
 export const activeUserId = internalQuery({
   args: {},
   handler: async (ctx) => {
