@@ -25,6 +25,12 @@ export const start = mutation({
     if (args.durationMinutes <= 0 || args.durationMinutes > 120) {
       throw new Error("Duration must be between 1 and 120 minutes");
     }
+    if (args.currentTask && args.currentTask.length > 200) {
+      throw new Error("Task must be under 200 characters");
+    }
+    if (args.tags && (args.tags.length > 10 || args.tags.some((t) => t.length > 50))) {
+      throw new Error("Maximum 10 tags, each under 50 characters");
+    }
 
     // Idempotency guard: check for existing active session
     const recent = await ctx.db
@@ -67,6 +73,9 @@ export const setTask = mutation({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
+    if (args.currentTask.length > 200) {
+      throw new Error("Task must be under 200 characters");
+    }
     const recent = await ctx.db
       .query("pomodoroSessions")
       .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
@@ -93,6 +102,12 @@ export const complete = mutation({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
+    if (args.notes && args.notes.length > 500) {
+      throw new Error("Notes must be under 500 characters");
+    }
+    if (args.tags && (args.tags.length > 10 || args.tags.some((t) => t.length > 50))) {
+      throw new Error("Maximum 10 tags, each under 50 characters");
+    }
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== args.userId) {
       throw new Error("Session not found or access denied");
@@ -117,6 +132,9 @@ export const interrupt = mutation({
   },
   handler: async (ctx, args) => {
     await verifyUserId(ctx, args.userId);
+    if (args.reason && args.reason.length > 200) {
+      throw new Error("Reason must be under 200 characters");
+    }
     const session = await ctx.db.get(args.sessionId);
     if (!session || session.userId !== args.userId) {
       throw new Error("Session not found or access denied");
@@ -124,7 +142,7 @@ export const interrupt = mutation({
     if (session.completed || session.interrupted) {
       throw new Error("Session already finished");
     }
-    const reason = args.reason?.trim().slice(0, 100) || undefined;
+    const reason = args.reason?.trim().slice(0, 200) || undefined;
     await ctx.db.patch(args.sessionId, {
       interrupted: true,
       completedAt: Date.now(),
@@ -417,6 +435,12 @@ export const tagAnalytics = query({
   },
 });
 
+/**
+ * @deprecated Use GET /api/me with API key auth instead.
+ * This scans the entire DB and is a privacy concern — returns whatever userId
+ * happened to use the app most recently, regardless of auth.
+ * Kept for backward compatibility; will be removed in a future sprint.
+ */
 export const activeUserId = internalQuery({
   args: {},
   handler: async (ctx) => {

@@ -101,6 +101,16 @@ async function apiPost(path, data) {
 
 // ── Commands ────────────────────────────────────────────────────────
 
+async function cmdMe(args) {
+  const data = await apiCall("/api/me");
+  if (args.includes("--json")) {
+    console.log(JSON.stringify(data, null, 2));
+  } else {
+    console.log(`User ID: ${data.userId}`);
+    console.log(`Key ID: ${data.keyId}`);
+  }
+}
+
 async function cmdStatus(args) {
   const data = await apiCall("/api/status");
   if (args.includes("--json")) {
@@ -605,6 +615,13 @@ function cmdHelpLlm() {
     },
     commands: [
       {
+        name: "me",
+        description: "Show authenticated user ID and API key ID. Use instead of activeUserId.",
+        usage: "agent-pomodoro me [--json]",
+        endpoint: "GET /api/me",
+        response_example: { userId: "user_abc123", keyId: "k1234567890" },
+      },
+      {
         name: "status",
         description: "Quick summary: today's pomodoros, week stats, streak, last session",
         usage: "agent-pomodoro status [--json]",
@@ -822,6 +839,7 @@ function cmdHelp() {
   console.log(`agent-pomodoro — Agent Pomodoro CLI
 
 Usage:
+  agent-pomodoro me                  Show authenticated user info
   agent-pomodoro status              Quick summary (today, week, streak)
   agent-pomodoro stats [days]        Detailed stats (default: 7 days)
   agent-pomodoro sessions today      Today's sessions
@@ -883,6 +901,8 @@ if (!cmd || cmd === "--help" || cmd === "-h") {
   cmdHelp();
 } else if (cmd === "--help-llm") {
   cmdHelpLlm();
+} else if (cmd === "me") {
+  await cmdMe(args.slice(1));
 } else if (cmd === "status") {
   await cmdStatus(args.slice(1));
 } else if (cmd === "stats") {

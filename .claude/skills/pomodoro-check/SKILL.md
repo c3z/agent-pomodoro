@@ -116,6 +116,7 @@ agent-pomodoro --help-llm    # full JSON schema for agents (no key needed)
 
 | Command | Description |
 |---------|-------------|
+| `me [--json]` | Show authenticated user ID + key ID |
 | `status [--json]` | Quick summary (today + week + streak) |
 | `stats [days] [--json]` | Detailed stats for period (default: 7 days) |
 | `sessions today [--json]` | List today's sessions |
@@ -133,11 +134,19 @@ agent-pomodoro --help-llm    # full JSON schema for agents (no key needed)
 | `--help-llm` | Full JSON schema for AI agents |
 | `--help` | Human-readable help |
 
+### Get authenticated user info
+```bash
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro me           # user ID + key ID
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro me --json    # machine-readable
+```
+
+Use `apom me` instead of the deprecated `activeUserId` internal query.
+
 ## Fallback: Direct Convex queries
 
 If `agent-pomodoro` is not available, use direct Convex queries:
 
-### Step 1: Get active userId
+### Step 1: Get active userId (DEPRECATED — use `apom me` instead)
 ```bash
 cd ~/P/agent-pomodoro && CONVEX_DEPLOYMENT=prod:efficient-wolf-51 npx convex run sessions:activeUserId '{}' 2>/dev/null
 ```
