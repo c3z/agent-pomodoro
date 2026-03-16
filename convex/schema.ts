@@ -16,6 +16,7 @@ export default defineSchema({
     interrupted: v.boolean(),
     notes: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    currentTask: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_date", ["userId", "startedAt"])

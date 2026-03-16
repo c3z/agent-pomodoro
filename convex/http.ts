@@ -64,7 +64,7 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame"]) {
+for (const path of ["/api/status", "/api/stats", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame"]) {
   http.route({
     path,
     method: "OPTIONS",
@@ -175,12 +175,15 @@ http.route({
       return jsonResponse({ error: "durationMinutes must be 1-120" }, 400);
     }
 
+    const currentTask = typeof body.currentTask === "string" ? body.currentTask : undefined;
+
     let sessionId;
     try {
       sessionId = await ctx.runMutation(api.sessions.start, {
         userId: auth.userId,
         type,
         durationMinutes,
+        ...(currentTask ? { currentTask } : {}),
       });
     } catch (e: any) {
       if (e.message?.startsWith("CONFLICT:")) {
@@ -189,7 +192,7 @@ http.route({
       return jsonResponse({ error: e.message || "Failed to start session" }, 400);
     }
 
-    return jsonResponse({ sessionId, type, durationMinutes }, 201);
+    return jsonResponse({ sessionId, type, durationMinutes, ...(currentTask ? { currentTask } : {}) }, 201);
   }),
 });
 
@@ -256,6 +259,37 @@ http.route({
     }
 
     return jsonResponse({ ok: true });
+  }),
+});
+
+// POST /api/sessions/task — set currentTask on active session
+http.route({
+  path: "/api/sessions/task",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonResponse({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (typeof body.currentTask !== "string") {
+      return jsonResponse({ error: "currentTask (string) is required" }, 400);
+    }
+
+    try {
+      const sessionId = await ctx.runMutation(api.sessions.setTask, {
+        userId: auth.userId,
+        currentTask: body.currentTask,
+      });
+      return jsonResponse({ ok: true, sessionId, currentTask: body.currentTask });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to set task" }, 400);
+    }
   }),
 });
 
