@@ -61,7 +61,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .then((reg) => {
+          // Check for updates on every page load
+          reg.update().catch(() => {});
+        })
+        .catch(() => {});
     }
   }, []);
 

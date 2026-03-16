@@ -1,14 +1,14 @@
-const CACHE_NAME = "agent-pomodoro-v1";
-const STATIC_ASSETS = ["/", "/timer", "/history"];
+// BUILD_VERSION is replaced at build time by vite.config.ts
+const CACHE_VERSION = "__BUILD_VERSION__";
+const CACHE_NAME = `agent-pomodoro-${CACHE_VERSION}`;
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
+self.addEventListener("install", () => {
+  // Skip waiting so new SW activates immediately
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
+  // Delete all old caches
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
@@ -31,19 +31,16 @@ self.addEventListener("fetch", (event) => {
   // Skip Convex WebSocket and API calls
   if (url.hostname.includes("convex")) return;
 
-  // Network-first for navigation, cache-first for assets
+  // Navigation: network-only (no caching HTML — Convex provides realtime data)
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        })
-        .catch(() => caches.match(request).then((r) => r || caches.match("/")))
+      fetch(request).catch(() => caches.match("/") || new Response("Offline", { status: 503 }))
     );
-  } else if (url.pathname.startsWith("/assets/")) {
-    // Cache-first for hashed assets
+    return;
+  }
+
+  // Hashed assets (/assets/*): cache-first (immutable, hash in filename)
+  if (url.pathname.startsWith("/assets/")) {
     event.respondWith(
       caches.match(request).then(
         (cached) =>
