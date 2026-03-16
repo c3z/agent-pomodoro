@@ -95,7 +95,8 @@ e2e/
 .claude/skills/
 ├── sprint/            # Sprint cycle (build → test → audit → PR)
 ├── site-audit/        # Multi-reviewer quality audit (Agent Access = 70% primary)
-├── pomodoro-check/    # Agent checks c3z's usage (prefers agent-pomodoro CLI)
+├── pomodoro-check/    # Agent checks c3z's usage + auto-start/stop/task capture
+├── auto-tag/          # Git-aware session tagging on pomodoro completion
 └── agent-onboarding/  # Guides new agents through setup + interpretation
 ```
 
