@@ -50,29 +50,34 @@ app/
 │   ├── home.tsx     # Dashboard (stats + period selector + today's sessions)
 │   ├── timer.tsx    # Pomodoro timer + retry queue integration
 │   ├── history.tsx  # Session history with pagination
+│   ├── accountability.tsx # Shame board (score, timeline, gaps)
 │   ├── settings.tsx # API key management for agent access
 │   └── sign-in.tsx  # Clerk sign-in
 ├── components/      # React components
-│   ├── Timer.tsx    # Core timer logic + UI + completion modal + wake lock
+│   ├── Timer.tsx    # Core timer logic + UI + completion modal + wake lock + localStorage persistence
 │   ├── Stats.tsx    # Statistics cards
 │   ├── SessionList.tsx  # Session list with date groups + tags
+│   ├── AccountabilityBadge.tsx # Score badge (pulsing, links to /accountability)
 │   ├── AuthGate.tsx     # Clerk sign-in gate
 │   └── Providers.tsx    # Clerk + Convex providers
 └── lib/
-    ├── sounds.ts        # Web Audio completion sounds (singing bowl + chime) + vibration
+    ├── sounds.ts        # Web Audio sounds (start, reset, completion) + vibration
+    ├── accountability.ts # Pure computation: score, gaps, timeline, grades
     ├── useUserId.ts     # User ID hook (Clerk/dev)
     └── retryQueue.ts    # localStorage-based offline mutation retry
 
 convex/
-├── schema.ts        # pomodoroSessions + apiKeys tables
-├── sessions.ts      # CRUD mutations + queries + stats + agentSummary + activeUserId
+├── schema.ts        # pomodoroSessions + apiKeys + workActivity tables
+├── sessions.ts      # CRUD mutations + queries + stats + agentSummary + accountabilityToday
+├── activity.ts      # Work activity heartbeats, accountability score, shame log
 ├── apiKeys.ts       # API key CRUD + hash validation
-├── http.ts          # REST API: GET (status, stats, sessions) + POST (start, complete, interrupt)
+├── http.ts          # REST API: GET/POST sessions + activity endpoints
 ├── auth.config.ts   # Clerk JWT config
 └── tsconfig.json    # Convex-specific TS config
 
 packages/apom/       # CLI tool (npm install -g agent-pomodoro)
-├── bin/apom.mjs     # Zero-dependency CLI: status/stats/sessions + start/stop/interrupt
+├── bin/apom.mjs     # Zero-dependency CLI: status/stats/sessions/start/stop/heartbeat/accountability
+├── hooks/heartbeat.sh # Claude Code session hook (fire-and-forget curl)
 └── package.json     # npm package config
 
 public/
@@ -81,7 +86,7 @@ public/
 └── icon-*.png       # PWA icons
 
 e2e/
-├── smoke.spec.ts              # Critical pages load (6 tests)
+├── smoke.spec.ts              # Critical pages load (7 tests)
 ├── timer.spec.ts              # Timer interaction + keyboard shortcuts (11 tests)
 ├── timer-completion.spec.ts   # Completion flow, mode transitions, sounds (12 tests)
 └── dashboard.spec.ts          # Dashboard period selector + stats (4 tests)
@@ -99,14 +104,14 @@ e2e/
 - **Routes:** lowercase, React Router v7 file convention
 - **CSS:** Tailwind 4 with custom theme vars (pomored, breakgreen, surface)
 - **Font:** JetBrains Mono (monospace), Inter (sans)
-- **Tests:** Playwright E2E in `e2e/`, must pass before PR (33 tests)
+- **Tests:** Playwright E2E in `e2e/`, must pass before PR (34 tests)
 
 ## Quality Tracking
 
 Sprint cycle: brief → build → test → staging → audit → triage → compare → PR.
 Session summary and priorities in `s.md`.
 
-Current consolidated score: **8.5/10** (Sprint #8).
+Current consolidated score: **8.6/10** (Sprint #16).
 
 Agent Access is the primary quality driver (70% weight). Old reviewers at 10% each (regression guard).
 

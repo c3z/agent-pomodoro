@@ -1,27 +1,44 @@
 # Session Summary — Agent Pomodoro
 
-## Current Sprint: #15 (completed)
-## Consolidated Score: 8.9/10 (Phase 3)
-## Phase 3: Closing the Loop — PWA polish, agent write-back, v1.0
+## Current Sprint: #17 (in progress)
+## Consolidated Score: 8.6/10 (Sprint #16)
+## Phase 4: v1.0 Polish & Agent Control Loop
 
-## Reviewer Weight (Phase 3)
+## Reviewer Weight (Phase 4)
 
 | Reviewer | Weight | Role |
 |----------|--------|------|
-| Agent Access | **60%** | Can an AI agent install, connect, query, start/stop sessions? |
-| End-user | **30%** | PWA on phone, sounds, wake lock — does it feel good? |
-| Performance | 10% | Audio latency, wake lock, timer precision |
+| Agent Access | **70%** | Can an AI agent install, connect, query, start/stop, monitor accountability? |
+| End-user | **10%** | PWA on phone, sounds, wake lock — regression guard |
+| DevEx | **10%** | Build pipeline, code organization, test coverage — regression guard |
+| Performance | **10%** | Timer accuracy, bundle size, offline — regression guard |
 
-## Upcoming Sprints (Phase 3: Close the Loop)
+## Roadmap
 
-### Sprint #16 — Final polish + v1.0 release
-- Fix issues from phone testing
-- Update pomodoro-check + agent-onboarding skills with start/stop/interrupt docs
-- Idempotency guard on POST /api/sessions/start
-- Input length limits on notes/tags via API
-- GitHub release v1.0
-- First full Agent Access audit with new reviewer squad
-- Final s.md summary
+See `docs/ROADMAP.md` for full sprint plan (Sprints #16-#24).
+
+## Completed — Phase 4
+
+### Sprint #16 — Core UX Fix + Agent API Hardening ✅
+Timer state persistence via localStorage (survives navigation + page refresh). GET /api/sessions/active endpoint. Idempotency guard on POST /api/sessions/start (409 on conflict). `apom active` CLI command. Accountability system (heartbeat API, shame board, badge). Start/reset sounds. P1 audit fixes: CLI shame field mismatch, sessionId persistence, --help-llm corrections.
+
+**Sprint #16 Scores:**
+
+| Reviewer | #15 | #16 | Delta |
+|----------|------|------|-------|
+| Agent Access | 9.0 | **8.5** | -0.5 |
+| End-user | 9.1 | **9.5** | +0.4 |
+| DevEx | 9.0 | **8.4** | -0.6 |
+| Performance | 8.6 | **8.8** | +0.2 |
+| **Consolidated** | **8.9** | **8.6** | **-0.3** |
+
+**P2 backlog from Sprint #16 audit:**
+- ~~CLI shame field mismatch~~ FIXED
+- ~~SessionId not persisted~~ FIXED
+- ~~--help-llm wrong fields~~ FIXED
+- Skills (pomodoro-check, agent-onboarding) missing write commands + activity endpoints
+- Timer.tsx at 682 lines — extraction candidate
+- Settings API Reference only shows 4 of 10 endpoints
 
 ## Completed — Phase 3: Close the Loop
 
