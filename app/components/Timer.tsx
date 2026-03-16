@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { playCompletionSound } from "~/lib/sounds";
+import { playCompletionSound, playStartSound, playResetSound } from "~/lib/sounds";
 
 type TimerMode = "work" | "break" | "longBreak";
 
@@ -310,6 +310,7 @@ export function Timer({
     endTimeRef.current = Date.now() + secondsLeft * 1000;
     setIsRunning(true);
     setIsPaused(false);
+    playStartSound();
     requestWakeLock();
   };
 
@@ -331,6 +332,7 @@ export function Timer({
     releaseWakeLock();
     endTimeRef.current = 0;
     if (startedRef.current) {
+      playResetSound();
       onInterruptRef.current?.();
       startedRef.current = false;
       completedRef.current = false;
