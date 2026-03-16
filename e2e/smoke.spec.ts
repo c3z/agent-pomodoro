@@ -27,6 +27,11 @@ test.describe("Smoke tests", () => {
     await expect(page.locator("text=Create API Key")).toBeVisible();
   });
 
+  test("accountability page loads", async ({ page }) => {
+    await page.goto("/accountability");
+    await expect(page.getByRole("heading", { name: "Accountability" })).toBeVisible();
+  });
+
   test("navigation works", async ({ page }) => {
     await page.goto("/");
     await page.click("text=Timer");
