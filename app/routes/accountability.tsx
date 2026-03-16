@@ -8,6 +8,7 @@ import {
   gradeColor,
   scoreColor,
   segmentColor,
+  loadWorkdayHours,
   type Gap,
   type TimelineSegment,
 } from "~/lib/accountability";
@@ -25,14 +26,18 @@ function TrendArrow({ trend }: { trend: "up" | "down" | "flat" }) {
   return <span className="text-gray-500 font-mono text-xl ml-2" title="Flat">→</span>;
 }
 
-function TimelineBar({ segments }: { segments: TimelineSegment[] }) {
+function TimelineBar({ segments, startHour, endHour }: { segments: TimelineSegment[]; startHour: number; endHour: number }) {
+  const midHour = Math.round((startHour + endHour) / 2);
+  const q1 = Math.round((startHour + midHour) / 2);
+  const q3 = Math.round((midHour + endHour) / 2);
+  const fmt = (h: number) => `${h}:00`;
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-gray-600 text-xs font-mono">
-        <span>9:00</span>
-        <span>12:00</span>
-        <span>15:00</span>
-        <span>18:00</span>
+        <span>{fmt(startHour)}</span>
+        <span>{fmt(q1)}</span>
+        <span>{fmt(q3)}</span>
+        <span>{fmt(endHour)}</span>
       </div>
       <div className="relative h-6 rounded-full overflow-hidden bg-surface-lighter">
         {segments.map((seg, i) => {
@@ -142,7 +147,8 @@ export default function AccountabilityPage() {
     );
   }
 
-  const accountability = computeAccountability(data.todaySessions);
+  const workday = loadWorkdayHours();
+  const accountability = computeAccountability(data.todaySessions, undefined, workday.start, workday.end);
   const trend = computeTrend(data.dailyCounts);
 
   return (
@@ -222,7 +228,7 @@ export default function AccountabilityPage() {
         <h2 className="text-sm font-mono font-bold text-gray-400 uppercase mb-4">
           Today's Timeline
         </h2>
-        <TimelineBar segments={accountability.timeline} />
+        <TimelineBar segments={accountability.timeline} startHour={workday.start} endHour={workday.end} />
       </div>
 
       {/* Shame Log */}

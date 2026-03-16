@@ -8,6 +8,8 @@ import {
   DEFAULT_CONFIG,
   type TimerConfig,
 } from "~/lib/timerSettings";
+import { loadWorkdayHours, saveWorkdayHours } from "~/lib/accountability";
+import { isSoundMuted, setSoundMuted } from "~/lib/sounds";
 
 async function generateApiKey(): Promise<string> {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -81,6 +83,15 @@ export default function Settings() {
     setTimerConfig((prev) => ({ ...prev, [field]: num }));
   };
 
+  // Workday hours
+  const [workdayStart, setWorkdayStart] = useState(() => loadWorkdayHours().start);
+  const [workdayEnd, setWorkdayEnd] = useState(() => loadWorkdayHours().end);
+  const [workdayError, setWorkdayError] = useState<string | null>(null);
+  const [workdaySaved, setWorkdaySaved] = useState(false);
+
+  // Sound mute
+  const [muted, setMuted] = useState(() => isSoundMuted());
+
   useEffect(() => {
     if (!revealedKey) return;
     const timer = setTimeout(() => setRevealedKey(null), 60_000);
@@ -117,6 +128,23 @@ export default function Settings() {
     await revokeKey({ keyId, userId });
   };
 
+  const handleSaveWorkday = () => {
+    if (workdayEnd <= workdayStart) {
+      setWorkdayError("End hour must be after start hour");
+      return;
+    }
+    setWorkdayError(null);
+    saveWorkdayHours(workdayStart, workdayEnd);
+    setWorkdaySaved(true);
+    setTimeout(() => setWorkdaySaved(false), 2000);
+  };
+
+  const handleToggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    setSoundMuted(next);
+  };
+
   const activeKeys = keys?.filter((k) => !k.revoked) ?? [];
   const revokedKeys = keys?.filter((k) => k.revoked) ?? [];
 
@@ -125,7 +153,7 @@ export default function Settings() {
       <div className="text-center space-y-2">
         <h1 className="text-3xl font-bold font-mono text-white">Settings</h1>
         <p className="text-gray-500 font-mono text-sm">
-          Timer durations & API keys
+          Preferences and API keys
         </p>
       </div>
 
@@ -211,6 +239,80 @@ export default function Settings() {
           Changes apply on next timer start. Reload the timer page to pick up
           new durations.
         </p>
+      </div>
+
+      {/* Work Schedule */}
+      <div className="bg-surface-light rounded-xl p-6 space-y-4">
+        <h2 className="text-lg font-mono font-bold text-gray-400">
+          Work Schedule
+        </h2>
+        <p className="text-gray-600 font-mono text-xs">
+          Accountability scoring uses these hours as your workday window.
+        </p>
+        <div className="flex items-center gap-4">
+          <div className="flex-1">
+            <label className="block text-gray-500 font-mono text-xs mb-1">
+              Start hour
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={23}
+              value={workdayStart}
+              onChange={(e) => setWorkdayStart(Number(e.target.value))}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-gray-500 font-mono text-xs mb-1">
+              End hour
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={23}
+              value={workdayEnd}
+              onChange={(e) => setWorkdayEnd(Number(e.target.value))}
+              className="w-full bg-surface rounded-lg px-4 py-2 font-mono text-sm text-white border border-surface-lighter focus:border-pomored focus:outline-none"
+            />
+          </div>
+          <div className="flex-none pt-5">
+            <button
+              onClick={handleSaveWorkday}
+              className="px-6 py-2 bg-pomored hover:bg-pomored-dark text-white rounded-lg font-mono text-sm font-bold transition-colors"
+            >
+              {workdaySaved ? "Saved!" : "Save"}
+            </button>
+          </div>
+        </div>
+        {workdayError && (
+          <p className="text-red-400 font-mono text-xs">{workdayError}</p>
+        )}
+      </div>
+
+      {/* Sound */}
+      <div className="bg-surface-light rounded-xl p-6 space-y-4">
+        <h2 className="text-lg font-mono font-bold text-gray-400">Sound</h2>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!muted}
+            onClick={handleToggleMute}
+            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+              muted ? "bg-surface-lighter" : "bg-breakgreen"
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform mt-0.5 ${
+                muted ? "translate-x-0.5" : "translate-x-[22px]"
+              }`}
+            />
+          </button>
+          <span className="font-mono text-sm text-gray-300">
+            {muted ? "Sounds muted" : "Sounds enabled"}
+          </span>
+        </label>
       </div>
 
       {/* New key revealed banner */}

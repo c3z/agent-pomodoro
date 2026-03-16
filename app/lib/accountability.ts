@@ -51,10 +51,25 @@ export interface AccountabilityData {
 
 // ---------- Constants ----------
 
-const WORK_START_HOUR = 9;
-const WORK_END_HOUR = 18;
 const MIN_GAP_MS = 5 * 60 * 1000; // 5 minutes
-const WORKING_WINDOW_MS = (WORK_END_HOUR - WORK_START_HOUR) * 60 * 60 * 1000;
+
+// ---------- Workday Hours (localStorage) ----------
+
+const WORKDAY_KEY = "apom_workday";
+
+export function loadWorkdayHours(): { start: number; end: number } {
+  try {
+    const raw = localStorage.getItem(WORKDAY_KEY);
+    if (!raw) return { start: 9, end: 18 };
+    return JSON.parse(raw);
+  } catch {
+    return { start: 9, end: 18 };
+  }
+}
+
+export function saveWorkdayHours(start: number, end: number) {
+  localStorage.setItem(WORKDAY_KEY, JSON.stringify({ start, end }));
+}
 
 // ---------- Helpers ----------
 
@@ -114,18 +129,21 @@ function mergeIntervals(intervals: Interval[]): Interval[] {
 
 export function computeAccountability(
   sessions: RawSession[],
-  nowMs?: number
+  nowMs?: number,
+  workStartHour: number = 9,
+  workEndHour: number = 18
 ): AccountabilityData {
   const now = nowMs ?? Date.now();
-  const workStart = todayAtHour(WORK_START_HOUR, now);
-  const workEnd = todayAtHour(WORK_END_HOUR, now);
+  const workStart = todayAtHour(workStartHour, now);
+  const workEnd = todayAtHour(workEndHour, now);
+  const workingWindowMs = (workEndHour - workStartHour) * 60 * 60 * 1000;
 
   const workdayStarted = now >= workStart;
   const workdayEnded = now >= workEnd;
   const effectiveNow = workdayEnded ? workEnd : now;
   const workdayProgress = !workdayStarted
     ? 0
-    : Math.min(100, ((effectiveNow - workStart) / WORKING_WINDOW_MS) * 100);
+    : Math.min(100, ((effectiveNow - workStart) / workingWindowMs) * 100);
 
   // Before workday: empty results
   if (!workdayStarted) {
@@ -221,7 +239,7 @@ export function computeAccountability(
   // Build timeline segments
   const timeline: TimelineSegment[] = [];
   const toPct = (ms: number) =>
-    Math.max(0, Math.min(100, ((ms - workStart) / WORKING_WINDOW_MS) * 100));
+    Math.max(0, Math.min(100, ((ms - workStart) / workingWindowMs) * 100));
 
   let tlCursor = workStart;
   for (const iv of merged) {
