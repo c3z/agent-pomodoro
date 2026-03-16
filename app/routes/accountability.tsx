@@ -31,6 +31,17 @@ function TimelineBar({ segments, startHour, endHour }: { segments: TimelineSegme
   const q1 = Math.round((startHour + midHour) / 2);
   const q3 = Math.round((midHour + endHour) / 2);
   const fmt = (h: number) => `${h}:00`;
+
+  // Time cursor position
+  const now = Date.now();
+  const today = new Date(now);
+  today.setHours(startHour, 0, 0, 0);
+  const workdayStartMs = today.getTime();
+  today.setHours(endHour, 0, 0, 0);
+  const workdayEndMs = today.getTime();
+  const cursorPct = ((now - workdayStartMs) / (workdayEndMs - workdayStartMs)) * 100;
+  const showCursor = now >= workdayStartMs && now <= workdayEndMs;
+
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-gray-600 text-xs font-mono">
@@ -57,6 +68,13 @@ function TimelineBar({ segments, startHour, endHour }: { segments: TimelineSegme
             />
           );
         })}
+        {showCursor && (
+          <div
+            className="absolute top-0 h-full w-0.5 bg-white/70 z-10"
+            style={{ left: `${cursorPct}%` }}
+            title={`Now: ${formatTime(now)}`}
+          />
+        )}
       </div>
       <div className="flex gap-4 text-xs font-mono text-gray-500">
         <span className="flex items-center gap-1">
