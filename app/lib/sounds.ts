@@ -1,5 +1,23 @@
 type TimerMode = "work" | "break" | "longBreak";
 
+// ---------- Sound Mute (localStorage) ----------
+
+const MUTE_KEY = "apom_sound_muted";
+
+export function isSoundMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function setSoundMuted(muted: boolean) {
+  localStorage.setItem(MUTE_KEY, muted ? "true" : "false");
+}
+
+// ---------- Audio Context ----------
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {
@@ -59,6 +77,7 @@ async function playBreakEndSound() {
 
 // Soft click + warm tone — session begins
 async function playStartSound() {
+  if (isSoundMuted()) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") await ctx.resume();
@@ -74,6 +93,7 @@ async function playStartSound() {
 
 // Descending soft tone — reset/stop
 async function playResetSound() {
+  if (isSoundMuted()) return;
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") await ctx.resume();
@@ -87,6 +107,7 @@ async function playResetSound() {
 export { playStartSound, playResetSound };
 
 export function playCompletionSound(mode: TimerMode) {
+  if (isSoundMuted()) return;
   if (mode === "work") {
     playWorkCompleteSound();
   } else {

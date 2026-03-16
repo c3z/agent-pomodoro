@@ -5,6 +5,7 @@ import { useUserId } from "~/lib/useUserId";
 import {
   computeAccountability,
   scoreColor,
+  loadWorkdayHours,
 } from "~/lib/accountability";
 
 /**
@@ -21,7 +22,8 @@ export function AccountabilityBadge() {
 
   if (!data) return null;
 
-  const acc = computeAccountability(data.todaySessions);
+  const workday = loadWorkdayHours();
+  const acc = computeAccountability(data.todaySessions, undefined, workday.start, workday.end);
 
   // Only show when workday started and score is below 90
   if (!acc.workdayStarted || acc.score >= 90) return null;

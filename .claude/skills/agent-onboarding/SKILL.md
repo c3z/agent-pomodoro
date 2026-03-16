@@ -60,20 +60,60 @@ If you get an error, check:
 | Command | What it does |
 |---------|-------------|
 | `agent-pomodoro status` | Quick summary (today + week + streak) |
-| `agent-pomodoro stats 7` | Detailed stats for last 7 days |
-| `agent-pomodoro stats 30` | Detailed stats for last 30 days |
+| `agent-pomodoro stats [days]` | Detailed stats (default: 7 days, max: 3650) |
 | `agent-pomodoro sessions today` | List today's sessions |
-| `agent-pomodoro sessions 20` | List 20 most recent sessions |
+| `agent-pomodoro sessions [limit]` | List recent sessions (default: 20, max: 200) |
+| `agent-pomodoro active` | Show currently running session (elapsed/remaining) |
+| `agent-pomodoro start [type] [min]` | Start a session (work/break/longBreak, default: work 25) |
+| `agent-pomodoro stop [--notes "..."] [--tags "a,b"]` | Complete active session with optional metadata |
+| `agent-pomodoro interrupt` | Cancel the active session |
+| `agent-pomodoro heartbeat` | Send a single activity heartbeat |
+| `agent-pomodoro heartbeat --daemon` | Send heartbeat every 30s (keep running) |
+| `agent-pomodoro heartbeat --source name` | Heartbeat with custom source label |
+| `agent-pomodoro accountability` | Accountability score (default: last 7 days) |
+| `agent-pomodoro accountability --days 30` | Accountability score for 30 days |
+| `agent-pomodoro accountability --shame` | Include shame log (unprotected work windows) |
+| `agent-pomodoro config set-key <key>` | Set API key |
+| `agent-pomodoro config set-url <url>` | Set custom Convex site URL |
+| `agent-pomodoro config show` | Show current config |
 | `agent-pomodoro --help-llm` | Full JSON schema for programmatic use |
+| `agent-pomodoro --help` | Human-readable help |
 
-Add `--json` to any command for machine-readable output.
+Add `--json` to any read/write command for machine-readable output.
+
+## Accountability System
+
+The accountability system tracks whether work time is **protected** by pomodoro sessions.
+It uses heartbeats (activity signals) and session data to compute a score.
+
+- **Heartbeats:** Agents or tools send periodic pings via `heartbeat` to signal that work is happening.
+- **Protected windows:** Time periods where heartbeats overlap with an active pomodoro session.
+- **Unprotected windows:** Time periods where heartbeats exist but no pomodoro was running.
+- **Score:** `protectedWindows / totalWindows * 100` — higher is better.
+- **Shame log:** Lists every unprotected work window with timestamps and duration.
+
+### Setting up heartbeat daemon
+
+For continuous monitoring, start a heartbeat daemon alongside work:
+
+```bash
+# As a background process
+agent-pomodoro heartbeat --daemon --source "claude-code" &
+
+# Or via the session hook (packages/apom/hooks/heartbeat.sh)
+# Sends a fire-and-forget curl on each Claude Code session start
+```
+
+The daemon sends a heartbeat every 30 seconds. It handles SIGINT/SIGTERM for clean exit.
 
 ## REST API (Alternative)
 
 If you prefer HTTP calls over CLI:
 
+### Read endpoints (GET)
+
 ```bash
-# Status
+# Status — agent summary (text)
 curl -H "Authorization: Bearer apom_xxx" https://HOST/api/status
 
 # Stats (7 days)
@@ -84,7 +124,52 @@ curl -H "Authorization: Bearer apom_xxx" https://HOST/api/sessions/today
 
 # Recent sessions
 curl -H "Authorization: Bearer apom_xxx" https://HOST/api/sessions?limit=20
+
+# Active session
+curl -H "Authorization: Bearer apom_xxx" https://HOST/api/sessions/active
+
+# Accountability score
+curl -H "Authorization: Bearer apom_xxx" "https://HOST/api/activity/accountability?days=7"
+
+# Shame log (unprotected work windows)
+curl -H "Authorization: Bearer apom_xxx" "https://HOST/api/activity/shame?days=7"
 ```
+
+### Write endpoints (POST)
+
+```bash
+# Start a session
+curl -X POST -H "Authorization: Bearer apom_xxx" -H "Content-Type: application/json" \
+  -d '{"type":"work","durationMinutes":25}' https://HOST/api/sessions/start
+
+# Complete a session
+curl -X POST -H "Authorization: Bearer apom_xxx" -H "Content-Type: application/json" \
+  -d '{"sessionId":"abc123","notes":"done","tags":["code"]}' https://HOST/api/sessions/complete
+
+# Interrupt a session
+curl -X POST -H "Authorization: Bearer apom_xxx" -H "Content-Type: application/json" \
+  -d '{"sessionId":"abc123"}' https://HOST/api/sessions/interrupt
+
+# Send heartbeat
+curl -X POST -H "Authorization: Bearer apom_xxx" -H "Content-Type: application/json" \
+  -d '{"source":"my-agent"}' https://HOST/api/activity/heartbeat
+```
+
+### Full endpoint reference
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/status` | Agent summary (text) |
+| GET | `/api/stats?days=N` | Statistics for period |
+| GET | `/api/sessions/today` | Today's sessions |
+| GET | `/api/sessions?limit=N` | Recent sessions |
+| GET | `/api/sessions/active` | Currently running session |
+| POST | `/api/sessions/start` | Start a new session |
+| POST | `/api/sessions/complete` | Complete a session |
+| POST | `/api/sessions/interrupt` | Interrupt a session |
+| POST | `/api/activity/heartbeat` | Record work activity heartbeat |
+| GET | `/api/activity/accountability?days=N` | Accountability score |
+| GET | `/api/activity/shame?days=N` | Shame log (unprotected windows) |
 
 ## How to Interpret Data
 
