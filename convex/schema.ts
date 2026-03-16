@@ -18,6 +18,11 @@ export default defineSchema({
     tags: v.optional(v.array(v.string())),
     currentTask: v.optional(v.string()),
     interruptReason: v.optional(v.string()),
+    commits: v.optional(v.array(v.object({
+      hash: v.string(),
+      message: v.string(),
+      filesChanged: v.number(),
+    }))),
   })
     .index("by_user", ["userId"])
     .index("by_user_date", ["userId", "startedAt"])
