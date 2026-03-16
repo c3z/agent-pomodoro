@@ -11,6 +11,9 @@ export const recordHeartbeat = internalMutation({
     timestamp: v.number(),
   },
   handler: async (ctx, args) => {
+    if (args.source.length > 64) {
+      throw new Error("Source must be under 64 characters");
+    }
     const windowStart = Math.floor(args.timestamp / WINDOW_MS) * WINDOW_MS;
 
     // Check for active work pomodoro

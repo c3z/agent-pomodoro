@@ -64,13 +64,24 @@ async function authenticateRequest(
 const http = httpRouter();
 
 // CORS preflight for all endpoints
-for (const path of ["/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
+for (const path of ["/api/me", "/api/status", "/api/stats", "/api/stats/tags", "/api/sessions/today", "/api/sessions", "/api/sessions/active", "/api/sessions/start", "/api/sessions/complete", "/api/sessions/interrupt", "/api/sessions/task", "/api/activity/heartbeat", "/api/activity/accountability", "/api/activity/shame", "/api/nudges", "/api/daily-summary", "/api/goals"]) {
   http.route({
     path,
     method: "OPTIONS",
     handler: httpAction(async () => corsPreflightResponse()),
   });
 }
+
+// GET /api/me — returns authenticated user info from API key
+http.route({
+  path: "/api/me",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const auth = await authenticateRequest(ctx, request);
+    if (auth instanceof Response) return auth;
+    return jsonResponse({ userId: auth.userId, keyId: auth.keyId });
+  }),
+});
 
 // GET /api/status — agent summary (text)
 http.route({
