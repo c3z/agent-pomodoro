@@ -58,7 +58,7 @@ function TimelineBar({ segments, startHour, endHour }: { segments: TimelineSegme
             <div
               key={i}
               className={`absolute inset-y-0 ${segmentColor(seg.kind)} ${
-                seg.kind === "protected" ? "opacity-90" : seg.kind === "unprotected" ? "opacity-70" : "opacity-30"
+                seg.kind === "protected" ? "opacity-90" : seg.kind === "unprotected" ? "opacity-70" : seg.kind === "away" ? "opacity-60" : "opacity-30"
               }`}
               style={{
                 left: `${seg.startPct}%`,
@@ -76,12 +76,15 @@ function TimelineBar({ segments, startHour, endHour }: { segments: TimelineSegme
           />
         )}
       </div>
-      <div className="flex gap-4 text-xs font-mono text-gray-500">
+      <div className="flex gap-4 text-xs font-mono text-gray-500 flex-wrap">
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-breakgreen opacity-90 inline-block" /> Protected
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-pomored opacity-70 inline-block" /> Unprotected
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-3 h-3 rounded bg-blue-400/50 inline-block" /> Away
         </span>
         <span className="flex items-center gap-1">
           <span className="w-3 h-3 rounded bg-surface-lighter opacity-30 inline-block" /> Future
@@ -166,7 +169,7 @@ export default function AccountabilityPage() {
   }
 
   const workday = loadWorkdayHours();
-  const accountability = computeAccountability(data.todaySessions, undefined, workday.start, workday.end);
+  const accountability = computeAccountability(data.todaySessions, undefined, workday.start, workday.end, data.heartbeatWindows);
   const trend = computeTrend(data.dailyCounts);
 
   return (
@@ -206,7 +209,7 @@ export default function AccountabilityPage() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className={`grid ${accountability.hasPresenceData ? "grid-cols-4" : "grid-cols-3"} gap-4`}>
         <div className="bg-surface-light rounded-xl p-4 text-center">
           <div className="text-gray-500 text-xs font-mono uppercase mb-1">
             Protected
@@ -223,6 +226,16 @@ export default function AccountabilityPage() {
             {accountability.unprotectedMinutes}m
           </div>
         </div>
+        {accountability.hasPresenceData && (
+          <div className="bg-surface-light rounded-xl p-4 text-center">
+            <div className="text-gray-500 text-xs font-mono uppercase mb-1">
+              Away
+            </div>
+            <div className="text-2xl font-mono font-bold text-blue-400">
+              {accountability.awayMinutes}m
+            </div>
+          </div>
+        )}
         <div className="bg-surface-light rounded-xl p-4 text-center">
           <div className="text-gray-500 text-xs font-mono uppercase mb-1">
             Longest Gap

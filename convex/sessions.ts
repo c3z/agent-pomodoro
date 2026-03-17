@@ -381,6 +381,16 @@ export const accountabilityToday = query({
       .order("asc")
       .collect();
 
+    // Today's heartbeat windows (presence detection)
+    const heartbeats = await ctx.db
+      .query("workActivity")
+      .withIndex("by_user_window", (q) =>
+        q.eq("userId", args.userId).gte("windowStart", startTs)
+      )
+      .order("asc")
+      .collect();
+    const heartbeatWindows = heartbeats.map((h) => h.windowStart);
+
     // 7 daily completed-work-session counts (index 0 = 7 days ago, 6 = yesterday)
     const sevenDaysAgo = startTs - 7 * 24 * 60 * 60 * 1000;
     const weekSessions = await ctx.db
@@ -401,7 +411,7 @@ export const accountabilityToday = query({
       if (dayIndex >= 0 && dayIndex < 7) dailyCounts[dayIndex]++;
     }
 
-    return { todaySessions, dailyCounts };
+    return { todaySessions, dailyCounts, heartbeatWindows };
   },
 });
 

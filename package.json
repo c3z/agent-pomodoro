@@ -8,6 +8,7 @@
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc",
     "test": "playwright test",
+    "test:unit": "vitest run",
     "test:smoke": "playwright test e2e/smoke.spec.ts",
     "test:report": "playwright show-report"
   },
@@ -33,7 +34,8 @@
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
     "vite": "^7.1.7",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.1.0"
   },
   "version": "0.1.0"
 }

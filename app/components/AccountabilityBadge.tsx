@@ -23,7 +23,7 @@ export function AccountabilityBadge() {
   if (!data) return null;
 
   const workday = loadWorkdayHours();
-  const acc = computeAccountability(data.todaySessions, undefined, workday.start, workday.end);
+  const acc = computeAccountability(data.todaySessions, undefined, workday.start, workday.end, data.heartbeatWindows);
 
   // Only show when workday started and score is below 90
   if (!acc.workdayStarted || acc.score >= 90) return null;

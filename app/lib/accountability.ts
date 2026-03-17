@@ -20,7 +20,7 @@ export interface Gap {
   durationMinutes: number;
 }
 
-export type SegmentKind = "protected" | "unprotected" | "break" | "future";
+export type SegmentKind = "protected" | "unprotected" | "break" | "away" | "future";
 
 export interface TimelineSegment {
   kind: SegmentKind;
@@ -40,6 +40,7 @@ export interface AccountabilityData {
   shameMessage: string;
   protectedMinutes: number;
   unprotectedMinutes: number;
+  awayMinutes: number;
   longestGapMinutes: number;
   gaps: Gap[];
   timeline: TimelineSegment[];
@@ -47,6 +48,8 @@ export interface AccountabilityData {
   workdayEnded: boolean;
   /** 0-100 how far through the workday we are */
   workdayProgress: number;
+  /** Whether heartbeat data is available (enables away detection) */
+  hasPresenceData: boolean;
 }
 
 // ---------- Constants ----------
@@ -125,19 +128,70 @@ function mergeIntervals(intervals: Interval[]): Interval[] {
   return merged;
 }
 
+// ---------- Presence (heartbeat) helpers ----------
+
+const PRESENCE_GAP_MS = 5 * 60 * 1000; // 5 min — merge heartbeat windows within this gap
+const HEARTBEAT_WINDOW_MS = 60 * 1000; // each heartbeat covers 1 minute
+
+/**
+ * Convert an array of heartbeat windowStart timestamps into merged "at desk" intervals.
+ */
+export function buildPresenceIntervals(
+  heartbeatWindows: number[],
+  workStart: number,
+  workEnd: number
+): Interval[] {
+  if (heartbeatWindows.length === 0) return [];
+
+  const raw: Interval[] = heartbeatWindows
+    .map((ws) => ({
+      start: Math.max(ws, workStart),
+      end: Math.min(ws + HEARTBEAT_WINDOW_MS, workEnd),
+    }))
+    .filter((iv) => iv.start < iv.end);
+
+  if (raw.length === 0) return [];
+
+  // Merge with PRESENCE_GAP tolerance (bridge small gaps between heartbeats)
+  const sorted = [...raw].sort((a, b) => a.start - b.start);
+  const merged: Interval[] = [{ ...sorted[0] }];
+  for (let i = 1; i < sorted.length; i++) {
+    const last = merged[merged.length - 1];
+    if (sorted[i].start - last.end <= PRESENCE_GAP_MS) {
+      last.end = Math.max(last.end, sorted[i].end);
+    } else {
+      merged.push({ ...sorted[i] });
+    }
+  }
+  return merged;
+}
+
+/**
+ * Check if a point in time falls within any of the given intervals.
+ */
+function isInIntervals(ms: number, intervals: Interval[]): boolean {
+  for (const iv of intervals) {
+    if (ms >= iv.start && ms < iv.end) return true;
+    if (iv.start > ms) break; // sorted, no need to check further
+  }
+  return false;
+}
+
 // ---------- Main ----------
 
 export function computeAccountability(
   sessions: RawSession[],
   nowMs?: number,
   workStartHour: number = 9,
-  workEndHour: number = 18
+  workEndHour: number = 18,
+  heartbeatWindows?: number[]
 ): AccountabilityData {
   const now = nowMs ?? Date.now();
   const workStart = todayAtHour(workStartHour, now);
   const workEnd = todayAtHour(workEndHour, now);
   const workingWindowMs = (workEndHour - workStartHour) * 60 * 60 * 1000;
 
+  const hasPresenceData = Array.isArray(heartbeatWindows) && heartbeatWindows.length > 0;
   const workdayStarted = now >= workStart;
   const workdayEnded = now >= workEnd;
   const effectiveNow = workdayEnded ? workEnd : now;
@@ -153,6 +207,7 @@ export function computeAccountability(
       shameMessage: "Workday hasn't started yet. Enjoy the calm.",
       protectedMinutes: 0,
       unprotectedMinutes: 0,
+      awayMinutes: 0,
       longestGapMinutes: 0,
       gaps: [],
       timeline: [
@@ -167,6 +222,7 @@ export function computeAccountability(
       workdayStarted: false,
       workdayEnded: false,
       workdayProgress: 0,
+      hasPresenceData: false,
     };
   }
 
@@ -190,78 +246,124 @@ export function computeAccountability(
 
   const merged = mergeIntervals(protectedIntervals);
 
+  // Build presence intervals from heartbeats (if available)
+  const presenceIntervals = hasPresenceData
+    ? buildPresenceIntervals(heartbeatWindows!, workStart, workEnd)
+    : null;
+
   // Calculate protected minutes
   let protectedMs = 0;
   for (const iv of merged) {
     protectedMs += iv.end - iv.start;
   }
 
-  // Calculate elapsed working minutes (past portion of workday only)
+  // Calculate elapsed working time
   const elapsedMs = effectiveNow - workStart;
-  const workingWindowMinutes = elapsedMs / 60000;
   const protectedMinutes = Math.round(protectedMs / 60000);
-  const unprotectedMinutes = Math.round(workingWindowMinutes - protectedMinutes);
 
-  // Calculate score
+  // Calculate away vs unprotected time
+  let awayMs = 0;
+  let unprotectedMs = 0;
+
+  if (presenceIntervals) {
+    // With presence data: unprotected = at desk without pomodoro, away = not at desk
+    // Walk through elapsed time in 1-minute steps for accuracy
+    const stepMs = 60 * 1000;
+    for (let t = workStart; t < effectiveNow; t += stepMs) {
+      if (isInIntervals(t, merged)) continue; // protected — skip
+      if (isInIntervals(t, presenceIntervals)) {
+        unprotectedMs += stepMs;
+      } else {
+        awayMs += stepMs;
+      }
+    }
+  } else {
+    // No presence data: all non-protected time is unprotected (legacy behavior)
+    unprotectedMs = elapsedMs - protectedMs;
+  }
+
+  const unprotectedMinutes = Math.round(unprotectedMs / 60000);
+  const awayMinutes = Math.round(awayMs / 60000);
+
+  // Score: protected / (protected + unprotected). Away is excluded.
+  const accountableMs = protectedMs + unprotectedMs;
   const score =
-    workingWindowMinutes > 0
-      ? Math.round((protectedMinutes / workingWindowMinutes) * 100)
+    accountableMs > 0
+      ? Math.round((protectedMs / accountableMs) * 100)
       : 100;
 
-  // Detect gaps (unprotected windows >= MIN_GAP)
+  // Detect gaps — only count unprotected-at-desk gaps (not away)
   const gaps: Gap[] = [];
   let cursor = workStart;
   for (const iv of merged) {
     if (iv.start - cursor >= MIN_GAP_MS) {
       const gapEnd = Math.min(iv.start, effectiveNow);
       if (gapEnd > cursor) {
-        gaps.push({
-          startMs: cursor,
-          endMs: gapEnd,
-          durationMinutes: Math.round((gapEnd - cursor) / 60000),
-        });
+        // If we have presence data, only count gap if user was at desk
+        if (presenceIntervals) {
+          const gapHasPresence = presenceIntervals.some(
+            (p) => p.start < gapEnd && p.end > cursor
+          );
+          if (gapHasPresence) {
+            gaps.push({
+              startMs: cursor,
+              endMs: gapEnd,
+              durationMinutes: Math.round((gapEnd - cursor) / 60000),
+            });
+          }
+        } else {
+          gaps.push({
+            startMs: cursor,
+            endMs: gapEnd,
+            durationMinutes: Math.round((gapEnd - cursor) / 60000),
+          });
+        }
       }
     }
     cursor = iv.end;
   }
   // Gap after last session until now
   if (effectiveNow - cursor >= MIN_GAP_MS) {
-    gaps.push({
-      startMs: cursor,
-      endMs: effectiveNow,
-      durationMinutes: Math.round((effectiveNow - cursor) / 60000),
-    });
+    if (presenceIntervals) {
+      const gapHasPresence = presenceIntervals.some(
+        (p) => p.start < effectiveNow && p.end > cursor
+      );
+      if (gapHasPresence) {
+        gaps.push({
+          startMs: cursor,
+          endMs: effectiveNow,
+          durationMinutes: Math.round((effectiveNow - cursor) / 60000),
+        });
+      }
+    } else {
+      gaps.push({
+        startMs: cursor,
+        endMs: effectiveNow,
+        durationMinutes: Math.round((effectiveNow - cursor) / 60000),
+      });
+    }
   }
 
   const longestGapMinutes =
     gaps.length > 0 ? Math.max(...gaps.map((g) => g.durationMinutes)) : 0;
 
-  // Build timeline segments
+  // Build timeline segments — now with "away" support
   const timeline: TimelineSegment[] = [];
   const toPct = (ms: number) =>
     Math.max(0, Math.min(100, ((ms - workStart) / workingWindowMs) * 100));
 
   let tlCursor = workStart;
   for (const iv of merged) {
-    // Unprotected gap before this session
+    // Gap before this session — split into away/unprotected
     if (iv.start > tlCursor) {
       const gapEnd = Math.min(iv.start, effectiveNow);
       if (gapEnd > tlCursor) {
-        timeline.push({
-          kind: "unprotected",
-          startMs: tlCursor,
-          endMs: gapEnd,
-          startPct: toPct(tlCursor),
-          endPct: toPct(gapEnd),
-        });
+        pushGapSegments(timeline, tlCursor, gapEnd, presenceIntervals, toPct);
       }
     }
-    // Protected session — distinguish work vs break
-    const kind: SegmentKind = "protected";
-    // Check if any session in this merged interval is a break
-    // For simplicity, merged intervals are all "protected"
+    // Protected session
     timeline.push({
-      kind,
+      kind: "protected",
       startMs: iv.start,
       endMs: iv.end,
       startPct: toPct(iv.start),
@@ -270,15 +372,9 @@ export function computeAccountability(
     tlCursor = iv.end;
   }
 
-  // Unprotected after last session until now
+  // Gap after last session until now
   if (effectiveNow > tlCursor) {
-    timeline.push({
-      kind: "unprotected",
-      startMs: tlCursor,
-      endMs: effectiveNow,
-      startPct: toPct(tlCursor),
-      endPct: toPct(effectiveNow),
-    });
+    pushGapSegments(timeline, tlCursor, effectiveNow, presenceIntervals, toPct);
   }
 
   // Future portion (after now until workday end)
@@ -300,13 +396,83 @@ export function computeAccountability(
     shameMessage: shameMessageForGrade(grade, score, longestGapMinutes),
     protectedMinutes,
     unprotectedMinutes,
+    awayMinutes,
     longestGapMinutes,
     gaps,
     timeline,
     workdayStarted,
     workdayEnded,
     workdayProgress,
+    hasPresenceData,
   };
+}
+
+/**
+ * Push gap segments, splitting by presence data into "unprotected" vs "away".
+ */
+function pushGapSegments(
+  timeline: TimelineSegment[],
+  start: number,
+  end: number,
+  presenceIntervals: Interval[] | null,
+  toPct: (ms: number) => number
+) {
+  if (!presenceIntervals) {
+    // No presence data — entire gap is unprotected (legacy)
+    timeline.push({
+      kind: "unprotected",
+      startMs: start,
+      endMs: end,
+      startPct: toPct(start),
+      endPct: toPct(end),
+    });
+    return;
+  }
+
+  // Split gap by presence intervals into away/unprotected chunks
+  let cursor = start;
+  for (const p of presenceIntervals) {
+    if (p.end <= cursor) continue;
+    if (p.start >= end) break;
+
+    // Away chunk before presence
+    if (p.start > cursor) {
+      const awayEnd = Math.min(p.start, end);
+      timeline.push({
+        kind: "away",
+        startMs: cursor,
+        endMs: awayEnd,
+        startPct: toPct(cursor),
+        endPct: toPct(awayEnd),
+      });
+    }
+
+    // Unprotected chunk during presence
+    const unpStart = Math.max(p.start, cursor);
+    const unpEnd = Math.min(p.end, end);
+    if (unpEnd > unpStart) {
+      timeline.push({
+        kind: "unprotected",
+        startMs: unpStart,
+        endMs: unpEnd,
+        startPct: toPct(unpStart),
+        endPct: toPct(unpEnd),
+      });
+    }
+
+    cursor = Math.max(cursor, unpEnd);
+  }
+
+  // Remaining away chunk after last presence
+  if (cursor < end) {
+    timeline.push({
+      kind: "away",
+      startMs: cursor,
+      endMs: end,
+      startPct: toPct(cursor),
+      endPct: toPct(end),
+    });
+  }
 }
 
 /**
@@ -364,6 +530,8 @@ export function segmentColor(kind: SegmentKind): string {
       return "bg-pomored";
     case "break":
       return "bg-blue-400";
+    case "away":
+      return "bg-blue-400/50";
     case "future":
       return "bg-surface-lighter";
   }
