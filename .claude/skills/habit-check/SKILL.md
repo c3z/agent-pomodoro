@@ -90,25 +90,45 @@ When checking both systems, connect the dots:
 ```bash
 # Today's status (primary check)
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits --json
 
 # Mark habit done (supports partial name matching)
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits done "exercise"
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits done "exercise" --date 2026-03-15
 
 # Undo a checkin
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits undo "exercise"
 
-# Completion stats (30 days)
+# Completion stats (default 30 days)
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits stats
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits stats 14 --json
 
 # 21-day cycle status
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits cycle
 
-# Add a new habit
+# Habit × Pomodoro correlation (which habits boost focus?)
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits correlation
+APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits correlation 30 --json
+
+# Add a new habit (max 6 active)
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits add "Morning Qigong" --phase hard --linchpin
 
 # Archive a habit
 APOM_API_KEY=$(sec get APOM_API_KEY) agent-pomodoro habits archive "Old habit"
 ```
+
+### Quick reference table
+
+| Command | Description |
+|---------|-------------|
+| `habits [--json]` | Today's habits + completion status |
+| `habits add "Name" --phase hard [--linchpin]` | Create habit (max 6) |
+| `habits done "Name" [--date YYYY-MM-DD]` | Check in for today (or specific date) |
+| `habits undo "Name"` | Uncheck habit |
+| `habits stats [days] [--json]` | Completion rates + 2-day bins |
+| `habits cycle [--json]` | 21-day cycle status |
+| `habits correlation [days] [--json]` | Habit × Pomodoro impact |
+| `habits archive "Name"` | Remove from active |
 
 ## Key Huberman Rules (enforce these)
 
