@@ -22,6 +22,17 @@ Agent Pomodoro flips this. Your AI agent:
 - **Generates weekly retros** with data, not vibes
 
 No other productivity tool has a 44-endpoint REST API, 14 MCP tools, and a zero-dependency CLI — all designed for LLM consumption.
+---
+
+## Screenshots
+
+<img width="1105" height="966" alt="image" src="https://github.com/user-attachments/assets/f7845893-5325-4fb3-936c-ecf8b7f3b0f7" />
+
+<img width="1129" height="964" alt="image" src="https://github.com/user-attachments/assets/a534a8a1-3e3a-4166-a889-fa431bc473ef" />
+
+<img width="1016" height="154" alt="image" src="https://github.com/user-attachments/assets/7dd9e373-9680-4fc2-831d-e5512799c0ba" />
+
+<img width="1722" height="327" alt="image" src="https://github.com/user-attachments/assets/43c0ad0b-5b3a-47bf-aaac-3a1afc4e6f77" />
 
 ---
 
