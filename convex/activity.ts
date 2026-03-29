@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 
-const WINDOW_MS = 60_000;
+const WINDOW_MS = 5 * 60_000;
 const SESSION_GAP_MS = 5 * 60_000;
 
 export const recordHeartbeat = internalMutation({

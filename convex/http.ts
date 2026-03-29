@@ -69,8 +69,12 @@ async function authenticateRequest(
     return jsonResponse({ error: "Invalid or revoked API key" }, 401);
   }
 
-  // Fire-and-forget: lastUsedAt is best-effort, errors are non-critical
-  ctx.runMutation(internal.apiKeys.touchLastUsed, { keyId: result.keyId }).catch(() => {});
+  // Rate-limit touchLastUsed: only update if stale (>1 hour) to reduce mutations
+  const TOUCH_INTERVAL_MS = 60 * 60 * 1000;
+  const lastUsed = (result as any).lastUsedAt as number | null;
+  if (!lastUsed || Date.now() - lastUsed > TOUCH_INTERVAL_MS) {
+    ctx.runMutation(internal.apiKeys.touchLastUsed, { keyId: result.keyId }).catch(() => {});
+  }
 
   return result as AuthResult;
 }

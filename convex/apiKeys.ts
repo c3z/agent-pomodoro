@@ -77,7 +77,7 @@ export const validateByHash = internalQuery({
       .withIndex("by_hash", (q) => q.eq("keyHash", args.keyHash))
       .first();
     if (!key || key.revoked) return null;
-    return { userId: key.userId, keyId: key._id };
+    return { userId: key.userId, keyId: key._id, lastUsedAt: key.lastUsedAt ?? null };
   },
 });
 
