@@ -11,10 +11,14 @@ if [ -z "$API_KEY" ]; then
 fi
 
 # Throttle: skip if last heartbeat was less than 5 minutes ago
+# Must match WINDOW_MS in convex/activity.ts (5 * 60s)
+THROTTLE_SECONDS=300
 LOCKFILE="/tmp/apom-heartbeat.lock"
 if [ -f "$LOCKFILE" ]; then
-  LOCK_AGE=$(( $(date +%s) - $(stat -f%m "$LOCKFILE" 2>/dev/null || stat -c%Y "$LOCKFILE" 2>/dev/null || echo 0) ))
-  if [ "$LOCK_AGE" -lt 300 ]; then
+  # macOS stat uses -f%m, GNU/Linux uses -c%Y
+  LOCK_MTIME=$(stat -f%m "$LOCKFILE" 2>/dev/null || stat -c%Y "$LOCKFILE" 2>/dev/null || echo 0)
+  LOCK_AGE=$(( $(date +%s) - LOCK_MTIME ))
+  if [ "$LOCK_AGE" -lt "$THROTTLE_SECONDS" ]; then
     exit 0
   fi
 fi

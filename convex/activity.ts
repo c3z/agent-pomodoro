@@ -27,7 +27,7 @@ export const recordHeartbeat = internalMutation({
     );
     const hadActivePomodoro = active !== undefined;
 
-    // Dedup: one record per user per minute bucket
+    // Dedup: one record per user per 5-minute bucket
     const existing = await ctx.db
       .query("workActivity")
       .withIndex("by_user_window", (q) =>
@@ -213,8 +213,9 @@ export const getActivityStats = internalQuery({
     const todayRecords = records.filter(
       (r) => r.windowStart >= todayStart.getTime()
     );
-    const todayMinutes = todayRecords.length;
-    const todayProtected = todayRecords.filter((r) => r.hadActivePomodoro).length;
+    const windowMinutes = WINDOW_MS / 60_000;
+    const todayActiveMin = todayRecords.length * windowMinutes;
+    const todayProtectedMin = todayRecords.filter((r) => r.hadActivePomodoro).length * windowMinutes;
 
     const totalWindows = records.length;
     const protectedWindows = records.filter((r) => r.hadActivePomodoro).length;
@@ -231,10 +232,10 @@ export const getActivityStats = internalQuery({
 
     const lines: string[] = [];
     lines.push(
-      `Today: ${todayMinutes}min active coding, ${todayProtected}min protected by pomodoro`
+      `Today: ${todayActiveMin}min active coding, ${todayProtectedMin}min protected by pomodoro`
     );
     lines.push(
-      `Week: ${totalWindows}min active, accountability score ${score}% (${protectedWindows}/${totalWindows} windows protected)`
+      `Week: ${totalWindows * windowMinutes}min active, accountability score ${score}% (${protectedWindows}/${totalWindows} windows protected)`
     );
     if (minutesSinceLast !== null) {
       lines.push(`Last activity: ${minutesSinceLast}min ago`);
