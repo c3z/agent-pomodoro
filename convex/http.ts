@@ -46,6 +46,8 @@ async function parseJsonBody(request: Request): Promise<{ data?: any; error?: Re
 
 type AuthResult = { userId: string; keyId: string };
 
+const TOUCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour — rate-limit lastUsedAt updates
+
 async function authenticateRequest(
   ctx: ActionCtx,
   request: Request
@@ -69,10 +71,12 @@ async function authenticateRequest(
     return jsonResponse({ error: "Invalid or revoked API key" }, 401);
   }
 
-  // Fire-and-forget: lastUsedAt is best-effort, errors are non-critical
-  ctx.runMutation(internal.apiKeys.touchLastUsed, { keyId: result.keyId }).catch(() => {});
+  // Only touch lastUsedAt if stale (>1 hour) to reduce mutations
+  if (!result.lastUsedAt || Date.now() - result.lastUsedAt > TOUCH_INTERVAL_MS) {
+    ctx.runMutation(internal.apiKeys.touchLastUsed, { keyId: result.keyId }).catch(() => {});
+  }
 
-  return result as AuthResult;
+  return { userId: result.userId, keyId: result.keyId };
 }
 
 const http = httpRouter();

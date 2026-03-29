@@ -131,7 +131,7 @@ function mergeIntervals(intervals: Interval[]): Interval[] {
 // ---------- Presence (heartbeat) helpers ----------
 
 const PRESENCE_GAP_MS = 5 * 60 * 1000; // 5 min — merge heartbeat windows within this gap
-const HEARTBEAT_WINDOW_MS = 60 * 1000; // each heartbeat covers 1 minute
+const HEARTBEAT_WINDOW_MS = 5 * 60 * 1000; // each heartbeat covers 5 minutes
 
 /**
  * Convert an array of heartbeat windowStart timestamps into merged "at desk" intervals.
