@@ -25,17 +25,22 @@ STAGING_URL=https://xxx.vercel.app npm run test
 # Smoke only
 npm run test:smoke
 
-# Staging deploy
-npm run build && npx vercel --yes
+# Staging deploy (Vercel preview)
+npx vercel --yes
 
 # Production deploy (REQUIRES c3z approval)
+# Vercel is NOT connected to GitHub — no auto-deploy on push.
+# Frontend and Convex backend must be deployed separately.
 npx vercel --prod --yes
 
 # Convex dev (backend)
 npx convex dev
 
-# Convex prod deploy
+# Convex prod deploy (efficient-wolf-51, EU West 1)
 npx convex deploy --yes
+
+# Full production deploy (both frontend + backend)
+npx convex deploy --yes && npx vercel --prod --yes
 
 # Type check
 npm run typecheck
